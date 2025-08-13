@@ -6,6 +6,8 @@ import { Dashboard } from "@/components/dashboard"
 import { useAuth } from "@/hooks/use-auth"
 import { LoadingSpinner } from "@/components/loading-spinner"
 
+// tgegsvbs
+
 export default function Home() {
   const { user, loading } = useAuth()
   const [showWelcome, setShowWelcome] = useState(false)
