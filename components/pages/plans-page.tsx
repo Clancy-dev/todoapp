@@ -3,8 +3,9 @@
 import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, Plus, Calendar, Filter, ChevronLeft, ChevronRight } from "lucide-react"
 import { PageLoadingSpinner } from "@/components/loading-spinner"
 import { usePlans, type Plan } from "@/hooks/use-plans"
 import { PlanForm, type PlanFormData } from "@/components/plans/plan-form"
@@ -34,9 +35,11 @@ export default function PlansPage() {
         const matchesSearch =
           plan.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           (plan.description ?? "").toLowerCase().includes(searchQuery.toLowerCase())
+
         const matchesCategory = categoryFilter === "all" || plan.category === categoryFilter
         const matchesStatus = statusFilter === "all" || plan.status === statusFilter
         const matchesPriority = priorityFilter === "all" || plan.priority === priorityFilter
+
         return matchesSearch && matchesCategory && matchesStatus && matchesPriority
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -46,6 +49,9 @@ export default function PlansPage() {
   const paginatedPlans = filteredPlans.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
 
   const categories = Array.from(new Set(plans.map((plan) => plan.category)))
+  const completedPlans = plans.filter((plan) => plan.status === "completed").length
+  const inProgressPlans = plans.filter((plan) => plan.status === "in-progress").length
+  const notStartedPlans = plans.filter((plan) => plan.status === "not-started").length
 
   const handleSubmit = async (data: PlanFormData) => {
     setIsSubmitting(true)
@@ -78,110 +84,207 @@ export default function PlansPage() {
     setDeletingPlanId(null)
   }
 
-  if (isLoading) return <PageLoadingSpinner />
+  const handleViewDetails = (plan: Plan) => {
+    setViewingPlan(plan)
+  }
+
+  if (isLoading) {
+    return <PageLoadingSpinner />
+  }
+
+  const deletingPlan = plans.find((p) => p.id === deletingPlanId)
 
   return (
-    <div>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Long-term Plans</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            {plans.length} plans • {completedPlans} completed • {inProgressPlans} in progress • {notStartedPlans} not
+            started
+          </p>
+        </div>
+        <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => setShowForm(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          Add Plan
+        </Button>
+      </div>
+
       {/* Search and Filters */}
-      <div className="flex gap-2">
-        <Input
-          placeholder="Search plans..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        <Select onValueChange={(val) => setCategoryFilter(val)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select onValueChange={(val) => setStatusFilter(val)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="not-started">Not Started</SelectItem>
-            <SelectItem value="in-progress">In Progress</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="on-hold">On Hold</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select onValueChange={(val) => setPriorityFilter(val)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Priority" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="low">Low</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Button onClick={() => setShowForm(true)} className="mt-2">
-        <Plus /> Add Plan
-      </Button>
-
-      {/* Plan Cards */}
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {paginatedPlans.map((plan) => (
-          <PlanCard
-            key={plan.id}
-            plan={plan}
-            onEdit={handleEdit}
-            onViewDetails={(plan) => setViewingPlan(plan)}
-            onDelete={handleDelete}
-            onUpdateMilestone={updateMilestone}
+      <div className="space-y-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            placeholder="Search plans..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              setCurrentPage(1)
+            }}
+            className="pl-10"
           />
-        ))}
+        </div>
+
+        <div className="flex flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filters:</span>
+          </div>
+
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value)
+              setCurrentPage(1)
+            }}
+          >
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="not-started">Not Started</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="on-hold">On Hold</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={categoryFilter}
+            onValueChange={(value) => {
+              setCategoryFilter(value)
+              setCurrentPage(1)
+            }}
+          >
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={priorityFilter}
+            onValueChange={(value) => {
+              setPriorityFilter(value)
+              setCurrentPage(1)
+            }}
+          >
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="Priority" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Priorities</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2 mt-4">
-          <Button disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>
-            <ChevronLeft />
-          </Button>
-          <span>{currentPage} / {totalPages}</span>
-          <Button disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>
-            <ChevronRight />
-          </Button>
+      {/* Plans Grid */}
+      {filteredPlans.length === 0 ? (
+        <Card className="text-center py-12">
+          <CardContent>
+            <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <CardTitle className="text-xl mb-2">
+              {plans.length === 0 ? "No plans yet" : "No plans match your filters"}
+            </CardTitle>
+            <CardDescription className="mb-4">
+              {plans.length === 0
+                ? "Start planning your long-term goals and aspirations"
+                : "Try adjusting your search or filter criteria"}
+            </CardDescription>
+            {plans.length === 0 && (
+              <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => setShowForm(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Create Your First Plan
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {paginatedPlans.map((plan) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onViewDetails={handleViewDetails}
+                onUpdateMilestone={updateMilestone}
+              />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
+                {Math.min(currentPage * ITEMS_PER_PAGE, filteredPlans.length)} of {filteredPlans.length} plans
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </Button>
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Modals */}
-      {showForm && (
-        <PlanForm
-          isOpen={showForm}
-          plan={editingPlan}
-          onClose={() => { setShowForm(false); setEditingPlan(undefined) }}
-          onSubmit={handleSubmit}
-          isLoading={isSubmitting}
-        />
-      )}
-      {viewingPlan && (
-        <PlanDetailsModal
-          isOpen={!!viewingPlan}
-          plan={viewingPlan}
-          onClose={() => setViewingPlan(null)}
-          onUpdateMilestone={updateMilestone}
-        />
-      )}
-      {deletingPlanId && (
-        <DeletePlanModal
-          isOpen={!!deletingPlanId}
-          planTitle={plans.find((p) => p.id === deletingPlanId)?.title ?? "this plan"}
-          onClose={() => setDeletingPlanId(null)}
-          onConfirm={confirmDelete}
-        />
-      )}
+      <PlanForm
+        isOpen={showForm}
+        onClose={() => {
+          setShowForm(false)
+          setEditingPlan(undefined)
+        }}
+        onSubmit={handleSubmit}
+        plan={editingPlan}
+        isLoading={isSubmitting}
+      />
+
+      <PlanDetailsModal
+        isOpen={!!viewingPlan}
+        onClose={() => setViewingPlan(null)}
+        plan={viewingPlan}
+        onUpdateMilestone={updateMilestone}
+      />
+
+      <DeletePlanModal
+        isOpen={!!deletingPlanId}
+        onClose={() => setDeletingPlanId(null)}
+        onConfirm={confirmDelete}
+        planTitle={deletingPlan?.title ?? "this plan"}
+      />
     </div>
   )
 }
