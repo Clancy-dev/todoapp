@@ -1,5 +1,5 @@
 // API client for authentication endpoints
-const API_BASE_URL = process.env.NODE_ENV === "production" ? "https://your-domain.vercel.app" : "http://localhost:3000"
+const API_BASE_URL = process.env.NODE_ENV === "production" ? "https://taskmasterpro1.vercel.app/" : "http://localhost:3000"
 
 export interface ApiResponse<T = any> {
   success: boolean
