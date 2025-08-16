@@ -59,7 +59,7 @@ export function ExpensePage() {
   )
 
   const categories = Array.from(new Set(transactions.map((transaction) => transaction.category)))
-
+// thrrdcffgvgg  
   const handleSubmit = async (data: TransactionFormData) => {
     setIsSubmitting(true)
     try {
