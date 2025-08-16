@@ -2,14 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { toast } from "react-hot-toast"
-import {
-  loginUser,
-  registerUser,
-  updateUserProfile,
-  changeUserPassword,
-  resetUserPassword,
-  getUserById,
-} from "@/lib/actions/auth"
+import { authApi } from "@/lib/api-client"
 
 export interface User {
   id: string
@@ -62,7 +55,7 @@ export function useAuth() {
           return
         }
 
-        const result = await getUserById(userId)
+        const result = await authApi.getMe(userId)
         if (result.success && result.user) {
           const userWithActivity: User = {
             ...result.user,
@@ -96,7 +89,7 @@ export function useAuth() {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const result = await loginUser(email, password)
+      const result = await authApi.login(email, password)
 
       if (result.success && result.user) {
         const userWithActivity: User = {
@@ -137,14 +130,7 @@ export function useAuth() {
     profilePicture?: string | null,
   ): Promise<boolean> => {
     try {
-      const result = await registerUser(
-        name,
-        email,
-        password,
-        securityQuestion,
-        securityAnswer,
-        profilePicture,
-      )
+      const result = await authApi.register(name, email, password, securityQuestion, securityAnswer, profilePicture)
 
       if (result.success && result.user) {
         const userWithActivity: User = {
@@ -180,7 +166,7 @@ export function useAuth() {
     if (!user) return
 
     try {
-      const result = await updateUserProfile(user.id, updates)
+      const result = await authApi.updateProfile(user.id, updates)
 
       if (result.success && result.user) {
         const updatedUser: User = {
@@ -202,7 +188,7 @@ export function useAuth() {
     if (!user) return false
 
     try {
-      const result = await changeUserPassword(user.id, currentPassword, newPassword)
+      const result = await authApi.changePassword(user.id, currentPassword, newPassword)
 
       if (result.success) {
         toast.success("Password changed successfully")
@@ -224,7 +210,7 @@ export function useAuth() {
     newPassword: string,
   ): Promise<boolean> => {
     try {
-      const result = await resetUserPassword(email, securityAnswer, newPassword)
+      const result = await authApi.resetPassword(email, securityAnswer, newPassword)
 
       if (result.success) {
         toast.success("Password reset successfully")

@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useAuth } from "@/hooks/use-auth"
 import { LoadingSpinner } from "@/components/loading-spinner"
+import { useAuth } from "@/hooks/use-auth"
 
 interface AuthModalProps {
   isOpen: boolean
@@ -83,22 +83,14 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     },
   })
 
-  const checkUserSecurityQuestion = (email: string) => {
+  const checkUserSecurityQuestion = async (email: string) => {
     if (!email) return
 
     try {
-      const users = JSON.parse(localStorage.getItem("users") || "[]")
-      const user = users.find((u: any) => u.email === email)
-
-      if (user && user.securityQuestion) {
-        setUserSecurityQuestion(user.securityQuestion)
-        setShowSecurityQuestion(true)
-      } else {
-        setShowSecurityQuestion(false)
-        forgotPasswordForm.setError("email", {
-          message: "No account found with this email address",
-        })
-      }
+      // This would need a new API endpoint to get security question by email
+      // For now, we'll show the security question input directly
+      setShowSecurityQuestion(true)
+      setUserSecurityQuestion("Please enter your security answer below")
     } catch (error) {
       setShowSecurityQuestion(false)
     }
@@ -354,7 +346,9 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                 <>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Security Question</Label>
-                    <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">{userSecurityQuestion}</p>
+                    <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                      Please provide your security answer for password reset
+                    </p>
                   </div>
 
                   <div className="space-y-2">
