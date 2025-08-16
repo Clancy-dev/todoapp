@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { toast } from "react-hot-toast"
 import { useAuth } from "@/hooks/use-auth"
-import { syncService } from "@/lib/sync-service"
 import {
   createTodo,
   getTodosByUserAndDate,
@@ -18,11 +17,18 @@ export interface Todo {
   category: string
   priority: "low" | "medium" | "high"
   dueDate?: string
+  date: string // ISO date string
   time?: string
   completed: boolean
   createdAt: string
   updatedAt: string
-  userId?: string
+  userId: string
+}
+
+// Helper to cast priority string from server to union type
+const mapPriority = (p: string): "low" | "medium" | "high" => {
+  if (p === "low" || p === "medium" || p === "high") return p
+  return "low" // fallback
 }
 
 export function useTodos(selectedDate?: string) {
@@ -30,44 +36,40 @@ export function useTodos(selectedDate?: string) {
   const [loading, setLoading] = useState(true)
   const { user } = useAuth()
 
-  const getStorageKey = () => {
-    const dateKey = selectedDate || new Date().toISOString().split("T")[0]
-    return user ? `todos_${user.id}_${dateKey}` : `todos_guest_${dateKey}`
-  }
-
-  const getDateKey = () => {
-    return selectedDate || new Date().toISOString().split("T")[0]
-  }
+  const getDateKey = () => selectedDate || new Date().toISOString().split("T")[0]
 
   useEffect(() => {
     const loadTodos = async () => {
+      if (!user) {
+        setTodos([])
+        setLoading(false)
+        return
+      }
+
       try {
         setLoading(true)
+        const result = await getTodosByUserAndDate(user.id, getDateKey())
 
-        // Always load from localStorage first (works offline)
-        const savedTodos = localStorage.getItem(getStorageKey())
-        if (savedTodos) {
-          setTodos(JSON.parse(savedTodos))
+        if (result.success && Array.isArray(result.todos)) {
+          const todos: Todo[] = result.todos.map((t: any) => ({
+            ...t,
+            description: t.description ?? undefined,
+            time: t.time ?? undefined,
+            dueDate: t.dueDate ? new Date(t.dueDate).toISOString() : undefined,
+            createdAt: new Date(t.createdAt).toISOString(),
+            updatedAt: new Date(t.updatedAt).toISOString(),
+            priority: mapPriority(t.priority),
+          }))
+          setTodos(todos)
         } else {
+          console.error("Failed to load todos:", result.error)
+          toast.error("Failed to load todos")
           setTodos([])
-        }
-
-        // If online and user exists, try to load from server
-        if (user && syncService.getIsOnline()) {
-          try {
-            const result = await getTodosByUserAndDate(user.id, getDateKey())
-            if (result.success) {
-              localStorage.setItem(getStorageKey(), JSON.stringify(result.todos))
-              setTodos(result.todos)
-            }
-          } catch (error) {
-            console.error("Failed to load todos from server:", error)
-            // Continue with local data
-          }
         }
       } catch (error) {
         console.error("Error loading todos:", error)
         toast.error("Failed to load todos")
+        setTodos([])
       } finally {
         setLoading(false)
       }
@@ -76,137 +78,105 @@ export function useTodos(selectedDate?: string) {
     loadTodos()
   }, [user, selectedDate])
 
-  const saveTodos = (newTodos: Todo[]) => {
-    try {
-      localStorage.setItem(getStorageKey(), JSON.stringify(newTodos))
-      setTodos(newTodos)
-    } catch (error) {
-      console.error("Error saving todos:", error)
-      toast.error("Failed to save todos")
-    }
-  }
-
   const addTodo = async (todoData: Omit<Todo, "id" | "createdAt" | "updatedAt" | "userId">) => {
-    const newTodo: Todo = {
-      ...todoData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      userId: user?.id,
+    if (!user) {
+      toast.error("Please log in to create todos")
+      return null
     }
 
-    // Save locally first
-    const newTodos = [...todos, newTodo]
-    saveTodos(newTodos)
-
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const serverData = {
-          ...newTodo,
-          dueDate: newTodo.dueDate ? new Date(newTodo.dueDate) : undefined,
-          date: getDateKey(),
-        }
-        const result = await createTodo(serverData)
-        if (result.success) {
-          toast.success("Todo created successfully")
-          return result.todo
-        }
-      } catch (error) {
-        console.error("Failed to create todo on server:", error)
-      }
-    }
-
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "create",
-        entity: "todo",
-        data: { ...newTodo, date: getDateKey() },
+    try {
+      const serverData = {
+        ...todoData,
+        dueDate: todoData.dueDate ? new Date(todoData.dueDate) : undefined,
+        date: getDateKey(),
         userId: user.id,
-      })
-    }
+      }
 
-    toast.success("Todo created successfully")
-    return newTodo
+      const result = await createTodo(serverData)
+
+      if (result.success && result.todo) {
+        const todo: Todo = {
+          ...result.todo,
+          description: result.todo.description ?? undefined,
+          time: result.todo.time ?? undefined,
+          dueDate: result.todo.dueDate ? new Date(result.todo.dueDate).toISOString() : undefined,
+          createdAt: new Date(result.todo.createdAt).toISOString(),
+          updatedAt: new Date(result.todo.updatedAt).toISOString(),
+          priority: mapPriority(result.todo.priority),
+        }
+        setTodos((prev) => [...prev, todo])
+        toast.success("Todo created successfully")
+        return todo
+      } else {
+        toast.error(result.error || "Failed to create todo")
+        return null
+      }
+    } catch (error) {
+      console.error("Failed to create todo:", error)
+      toast.error("Failed to create todo")
+      return null
+    }
   }
 
   const updateTodo = async (id: string, updates: Partial<Todo>) => {
-    const updatedTodo = {
-      ...updates,
-      updatedAt: new Date().toISOString(),
+    if (!user) {
+      toast.error("Please log in to update todos")
+      return
     }
 
-    // Update locally first
-    const newTodos = todos.map((todo) => (todo.id === id ? { ...todo, ...updatedTodo } : todo))
-    saveTodos(newTodos)
-
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const serverData = {
-          ...updatedTodo,
-          dueDate: updatedTodo.dueDate ? new Date(updatedTodo.dueDate) : undefined,
-        }
-        const result = await updateTodoServer(id, serverData)
-        if (result.success) {
-          toast.success("Todo updated successfully")
-          return
-        }
-      } catch (error) {
-        console.error("Failed to update todo on server:", error)
+    try {
+      const updatedData = {
+        ...updates,
+        dueDate: updates.dueDate ? new Date(updates.dueDate) : undefined,
+        updatedAt: new Date(),
       }
-    }
 
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "update",
-        entity: "todo",
-        data: { id, ...updatedTodo },
-        userId: user.id,
-      })
-    }
+      const result = await updateTodoServer(id, updatedData)
 
-    toast.success("Todo updated successfully")
+      if (result.success && result.todo) {
+        const updatedTodo: Todo = {
+          ...result.todo,
+          description: result.todo.description ?? undefined,
+          time: result.todo.time ?? undefined,
+          dueDate: result.todo.dueDate ? new Date(result.todo.dueDate).toISOString() : undefined,
+          createdAt: new Date(result.todo.createdAt).toISOString(),
+          updatedAt: new Date(result.todo.updatedAt).toISOString(),
+          priority: mapPriority(result.todo.priority),
+        }
+        setTodos((prev) => prev.map((t) => (t.id === id ? updatedTodo : t)))
+        toast.success("Todo updated successfully")
+      } else {
+        toast.error(result.error || "Failed to update todo")
+      }
+    } catch (error) {
+      console.error("Failed to update todo:", error)
+      toast.error("Failed to update todo")
+    }
   }
 
   const deleteTodo = async (id: string) => {
-    // Delete locally first
-    const newTodos = todos.filter((todo) => todo.id !== id)
-    saveTodos(newTodos)
+    if (!user) {
+      toast.error("Please log in to delete todos")
+      return
+    }
 
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const result = await deleteTodoServer(id)
-        if (result.success) {
-          toast.success("Todo deleted successfully")
-          return
-        }
-      } catch (error) {
-        console.error("Failed to delete todo on server:", error)
+    try {
+      const result = await deleteTodoServer(id)
+      if (result.success) {
+        setTodos((prev) => prev.filter((t) => t.id !== id))
+        toast.success("Todo deleted successfully")
+      } else {
+        toast.error(result.error || "Failed to delete todo")
       }
+    } catch (error) {
+      console.error("Failed to delete todo:", error)
+      toast.error("Failed to delete todo")
     }
-
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "delete",
-        entity: "todo",
-        data: { id },
-        userId: user.id,
-      })
-    }
-
-    toast.success("Todo deleted successfully")
   }
 
   const toggleComplete = (id: string) => {
     const todo = todos.find((t) => t.id === id)
-    if (todo) {
-      updateTodo(id, { completed: !todo.completed })
-    }
+    if (todo) updateTodo(id, { completed: !todo.completed })
   }
 
   return {

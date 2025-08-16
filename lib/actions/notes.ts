@@ -6,18 +6,27 @@ import { revalidatePath } from "next/cache"
 export async function createNote(data: {
   title: string
   content: string
-  theme: string
+  category?: string // Optional, default to "Learning" if not provided
+  color: string
   tags: string[]
   userId: string
 }) {
   try {
     const note = await db.note.create({
-      data,
+      data: {
+        title: data.title,
+        content: data.content,
+        color: data.color,
+        category: data.category || "Learning", // Default to "Learning" if category is not set
+        tags: data.tags,
+        userId: data.userId, // must be a valid MongoDB ObjectId string
+      },
     })
 
-    revalidatePath("/")
+    revalidatePath("/notes")
     return { success: true, note }
   } catch (error) {
+    console.error("Error creating note:", error)
     return { success: false, error: "Failed to create note" }
   }
 }
@@ -26,13 +35,11 @@ export async function getNotesByUser(userId: string) {
   try {
     const notes = await db.note.findMany({
       where: { userId },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     })
-
     return { success: true, notes }
   } catch (error) {
+    console.error("Error fetching notes:", error)
     return { success: false, error: "Failed to get notes" }
   }
 }
@@ -43,8 +50,9 @@ export async function updateNote(
     title?: string
     content?: string
     theme?: string
+    category?: string
     tags?: string[]
-  },
+  }
 ) {
   try {
     const note = await db.note.update({
@@ -52,22 +60,21 @@ export async function updateNote(
       data,
     })
 
-    revalidatePath("/")
+    revalidatePath("/notes")
     return { success: true, note }
   } catch (error) {
+    console.error("Error updating note:", error)
     return { success: false, error: "Failed to update note" }
   }
 }
 
 export async function deleteNote(id: string) {
   try {
-    await db.note.delete({
-      where: { id },
-    })
-
-    revalidatePath("/")
+    await db.note.delete({ where: { id } })
+    revalidatePath("/notes")
     return { success: true }
   } catch (error) {
+    console.error("Error deleting note:", error)
     return { success: false, error: "Failed to delete note" }
   }
 }
@@ -75,23 +82,25 @@ export async function deleteNote(id: string) {
 export async function syncNotes(userId: string, notes: any[]) {
   try {
     // Delete existing notes for this user
-    await db.note.deleteMany({
-      where: { userId },
-    })
+    await db.note.deleteMany({ where: { userId } })
 
     // Create new notes
     if (notes.length > 0) {
       await db.note.createMany({
         data: notes.map((note) => ({
-          ...note,
+          title: note.title,
+          content: note.content,
+          category: note.category || "Learning", // Default to "Learning" if category is not set
+          color: note.color,
+          tags: note.tags,
           userId,
-          id: undefined, // Let MongoDB generate new IDs
         })),
       })
     }
 
     return { success: true }
   } catch (error) {
+    console.error("Error syncing notes:", error)
     return { success: false, error: "Failed to sync notes" }
   }
 }

@@ -18,10 +18,11 @@ export async function createTodo(data: {
       data,
     })
 
-    revalidatePath("/")
+    revalidatePath("/todos")
     return { success: true, todo }
   } catch (error) {
     return { success: false, error: "Failed to create todo" }
+    // If i fail to create i want it to see the real error
   }
 }
 
@@ -61,7 +62,7 @@ export async function updateTodo(
       data,
     })
 
-    revalidatePath("/")
+    revalidatePath("/todos")
     return { success: true, todo }
   } catch (error) {
     return { success: false, error: "Failed to update todo" }
@@ -74,7 +75,7 @@ export async function deleteTodo(id: string) {
       where: { id },
     })
 
-    revalidatePath("/")
+    revalidatePath("/todos")
     return { success: true }
   } catch (error) {
     return { success: false, error: "Failed to delete todo" }

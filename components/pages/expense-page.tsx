@@ -17,8 +17,8 @@ const ITEMS_PER_PAGE = 10
 
 export function ExpensePage() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [typeFilter, setTypeFilter] = useState<string>("all")
-  const [categoryFilter, setCategoryFilter] = useState<string>("all")
+  const [typeFilter, setTypeFilter] = useState<string>("placeholder")
+  const [categoryFilter, setCategoryFilter] = useState<string>("placeholder")
   const [currentPage, setCurrentPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | undefined>()
@@ -44,8 +44,8 @@ export function ExpensePage() {
           transaction.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           (transaction.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
 
-        const matchesType = typeFilter === "all" || transaction.type === typeFilter
-        const matchesCategory = categoryFilter === "all" || transaction.category === categoryFilter
+        const matchesType = typeFilter === "placeholder" || transaction.type === typeFilter
+        const matchesCategory = categoryFilter === "placeholder" || transaction.category === categoryFilter
 
         return matchesSearch && matchesType && matchesCategory
       })
@@ -92,7 +92,6 @@ export function ExpensePage() {
     if (deletingTransactionId) {
       deleteTransaction(deletingTransactionId)
       setDeletingTransactionId(null)
-      // Adjust current page if needed
       if (paginatedTransactions.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1)
       }
@@ -110,9 +109,7 @@ export function ExpensePage() {
     }).format(amount)
   }
 
-  if (loading) {
-    return <PageLoadingSpinner />
-  }
+  if (loading) return <PageLoadingSpinner />
 
   const deletingTransaction = transactions.find((t) => t.id === deletingTransactionId)
 
@@ -185,6 +182,7 @@ export function ExpensePage() {
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filters:</span>
           </div>
 
+          {/* Type Filter */}
           <Select
             value={typeFilter}
             onValueChange={(value) => {
@@ -193,15 +191,18 @@ export function ExpensePage() {
             }}
           >
             <SelectTrigger className="w-32">
-              <SelectValue placeholder="Type" />
+              <SelectValue>{typeFilter === "placeholder" ? "Type" : typeFilter}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="placeholder" disabled>
+                Type
+              </SelectItem>
               <SelectItem value="income">Income</SelectItem>
               <SelectItem value="expense">Expense</SelectItem>
             </SelectContent>
           </Select>
 
+          {/* Category Filter */}
           <Select
             value={categoryFilter}
             onValueChange={(value) => {
@@ -210,15 +211,19 @@ export function ExpensePage() {
             }}
           >
             <SelectTrigger className="w-40">
-              <SelectValue placeholder="Category" />
+              <SelectValue>{categoryFilter === "placeholder" ? "Category" : categoryFilter}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categories.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
-                </SelectItem>
-              ))}
+              <SelectItem value="placeholder" disabled>
+                Category
+              </SelectItem>
+             {categories
+             .filter((category) => category) // remove empty/undefined
+             .map((category) => (
+             <SelectItem key={category} value={category}>
+              {category}
+             </SelectItem>
+   ))}
             </SelectContent>
           </Select>
         </div>

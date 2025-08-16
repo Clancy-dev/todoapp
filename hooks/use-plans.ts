@@ -3,28 +3,12 @@
 import { useState, useEffect } from "react"
 import { toast } from "react-hot-toast"
 import { useAuth } from "@/hooks/use-auth"
-import { syncService } from "@/lib/sync-service"
 import {
   createPlan,
   getPlansByUser,
   updatePlan as updatePlanServer,
   deletePlan as deletePlanServer,
 } from "@/lib/actions/plans"
-
-export interface Plan {
-  id: string
-  title: string
-  description: string
-  category: string
-  priority: "low" | "medium" | "high"
-  status: "not-started" | "in-progress" | "completed" | "on-hold"
-  targetDate?: string
-  progress: number
-  milestones: Milestone[]
-  createdAt: string
-  updatedAt: string
-  userId?: string
-}
 
 export interface Milestone {
   id: string
@@ -33,204 +17,182 @@ export interface Milestone {
   completedAt?: string
 }
 
-export function usePlans() {
-  const [plans, setPlans] = useState<Plan[]>([])
-  const [loading, setLoading] = useState(true)
-  const { user } = useAuth()
+export interface Plan {
+  id: string
+  title: string
+  description?: string
+  category: string
+  priority: "low" | "medium" | "high"
+  status: "not-started" | "in-progress" | "completed" | "on-hold"
+  targetDate?: string
+  progress: number
+  milestones: Milestone[]
+  createdAt: string
+  updatedAt: string
+  userId: string
+}
 
-  const getStorageKey = () => {
-    return user ? `plans_${user.id}` : "plans_guest"
-  }
+export function usePlans() {
+  const { user } = useAuth()
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     const loadPlans = async () => {
+      if (!user) return
+
+      setIsLoading(true)
       try {
-        setLoading(true)
-
-        // Always load from localStorage first (works offline)
-        const savedPlans = localStorage.getItem(getStorageKey())
-        if (savedPlans) {
-          setPlans(JSON.parse(savedPlans))
+        const result = await getPlansByUser(user.id)
+        if (result.success && result.plans) {
+          const mappedPlans: Plan[] = result.plans.map((p: any) => ({
+            id: p.id,
+            title: p.title,
+            description: p.description ?? undefined,
+            category: p.category,
+            priority: p.priority as "low" | "medium" | "high",
+            status: p.status as "not-started" | "in-progress" | "completed" | "on-hold",
+            targetDate: p.targetDate ? new Date(p.targetDate).toISOString() : undefined,
+            progress: p.progress,
+            milestones: p.milestones,
+            createdAt: new Date(p.createdAt).toISOString(),
+            updatedAt: new Date(p.updatedAt).toISOString(),
+            userId: p.userId,
+          }))
+          setPlans(mappedPlans)
         } else {
-          setPlans([])
-        }
-
-        // If online and user exists, try to load from server
-        if (user && syncService.getIsOnline()) {
-          try {
-            const result = await getPlansByUser(user.id)
-            if (result.success) {
-              localStorage.setItem(getStorageKey(), JSON.stringify(result.plans))
-              setPlans(result.plans)
-            }
-          } catch (error) {
-            console.error("Failed to load plans from server:", error)
-            // Continue with local data
-          }
+          toast.error(result.error || "Failed to load plans")
         }
       } catch (error) {
         console.error("Error loading plans:", error)
         toast.error("Failed to load plans")
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
 
     loadPlans()
   }, [user])
 
-  const savePlans = (newPlans: Plan[]) => {
-    try {
-      localStorage.setItem(getStorageKey(), JSON.stringify(newPlans))
-      setPlans(newPlans)
-    } catch (error) {
-      console.error("Error saving plans:", error)
-      toast.error("Failed to save plans")
-    }
-  }
-
   const addPlan = async (planData: Omit<Plan, "id" | "createdAt" | "updatedAt" | "userId">) => {
-    const newPlan: Plan = {
-      ...planData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      userId: user?.id,
+    if (!user) {
+      toast.error("Please log in to create plans")
+      return null
     }
 
-    // Save locally first
-    const newPlans = [...plans, newPlan]
-    savePlans(newPlans)
-
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const serverData = {
-          ...newPlan,
-          targetDate: newPlan.targetDate ? new Date(newPlan.targetDate) : undefined,
-        }
-        const result = await createPlan(serverData)
-        if (result.success) {
-          toast.success("Plan created successfully")
-          return result.plan
-        }
-      } catch (error) {
-        console.error("Failed to create plan on server:", error)
-      }
-    }
-
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "create",
-        entity: "plan",
-        data: newPlan,
+    try {
+      const serverData = {
+        ...planData,
+        targetDate: planData.targetDate ? new Date(planData.targetDate) : undefined,
         userId: user.id,
-      })
-    }
+        milestones: planData.milestones.map((m) => ({
+          id: m.id,
+          text: m.text,
+          completed: m.completed,
+        })),
+      }
 
-    toast.success("Plan created successfully")
-    return newPlan
+      const result = await createPlan(serverData)
+      if (result.success && result.plan) {
+        const newPlan: Plan = {
+          id: result.plan.id,
+          title: result.plan.title,
+          description: result.plan.description ?? undefined,
+          category: result.plan.category,
+          priority: result.plan.priority as "low" | "medium" | "high",
+          status: result.plan.status as "not-started" | "in-progress" | "completed" | "on-hold",
+          targetDate: result.plan.targetDate ? new Date(result.plan.targetDate).toISOString() : undefined,
+          progress: result.plan.progress,
+          milestones: result.plan.milestones,
+          createdAt: new Date(result.plan.createdAt).toISOString(),
+          updatedAt: new Date(result.plan.updatedAt).toISOString(),
+          userId: result.plan.userId,
+        }
+
+        setPlans((prev) => [...prev, newPlan])
+        toast.success("Plan created successfully")
+        return newPlan
+      } else {
+        toast.error(result.error || "Failed to create plan")
+        return null
+      }
+    } catch (error) {
+      console.error("Failed to create plan:", error)
+      toast.error("Failed to create plan")
+      return null
+    }
   }
 
-  const updatePlan = async (id: string, updates: Partial<Plan>) => {
-    const updatedPlan = {
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    }
-
-    // Update locally first
-    const newPlans = plans.map((plan) => (plan.id === id ? { ...plan, ...updatedPlan } : plan))
-    savePlans(newPlans)
-
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const serverData = {
-          ...updatedPlan,
-          targetDate: updatedPlan.targetDate ? new Date(updatedPlan.targetDate) : undefined,
-        }
-        const result = await updatePlanServer(id, serverData)
-        if (result.success) {
-          toast.success("Plan updated successfully")
-          return
-        }
-      } catch (error) {
-        console.error("Failed to update plan on server:", error)
-      }
-    }
-
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "update",
-        entity: "plan",
-        data: { id, ...updatedPlan },
-        userId: user.id,
+  const updatePlan = async (
+    id: string,
+    data: Partial<Omit<Plan, "id" | "createdAt" | "updatedAt" | "userId">>
+  ) => {
+    try {
+      const result = await updatePlanServer(id, {
+        ...data,
+        targetDate: data.targetDate ? new Date(data.targetDate) : undefined,
       })
-    }
 
-    toast.success("Plan updated successfully")
+      if (result.success && result.plan) {
+        const updatedPlan: Plan = {
+          id: result.plan.id,
+          title: result.plan.title,
+          description: result.plan.description ?? undefined,
+          category: result.plan.category,
+          priority: result.plan.priority as "low" | "medium" | "high",
+          status: result.plan.status as "not-started" | "in-progress" | "completed" | "on-hold",
+          targetDate: result.plan.targetDate ? new Date(result.plan.targetDate).toISOString() : undefined,
+          progress: result.plan.progress,
+          milestones: result.plan.milestones,
+          createdAt: new Date(result.plan.createdAt).toISOString(),
+          updatedAt: new Date(result.plan.updatedAt).toISOString(),
+          userId: result.plan.userId,
+        }
+
+        setPlans((prev) => prev.map((p) => (p.id === id ? updatedPlan : p)))
+        toast.success("Plan updated successfully")
+        return updatedPlan
+      } else {
+        toast.error(result.error || "Failed to update plan")
+        return null
+      }
+    } catch (error) {
+      console.error("Failed to update plan:", error)
+      toast.error("Failed to update plan")
+      return null
+    }
   }
 
   const deletePlan = async (id: string) => {
-    // Delete locally first
-    const newPlans = plans.filter((plan) => plan.id !== id)
-    savePlans(newPlans)
-
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const result = await deletePlanServer(id)
-        if (result.success) {
-          toast.success("Plan deleted successfully")
-          return
-        }
-      } catch (error) {
-        console.error("Failed to delete plan on server:", error)
+    try {
+      const result = await deletePlanServer(id)
+      if (result.success) {
+        setPlans((prev) => prev.filter((p) => p.id !== id))
+        toast.success("Plan deleted successfully")
+        return true
+      } else {
+        toast.error(result.error || "Failed to delete plan")
+        return false
       }
+    } catch (error) {
+      console.error("Failed to delete plan:", error)
+      toast.error("Failed to delete plan")
+      return false
     }
-
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "delete",
-        entity: "plan",
-        data: { id },
-        userId: user.id,
-      })
-    }
-
-    toast.success("Plan deleted successfully")
   }
 
-  const updateMilestone = (planId: string, milestoneId: string, completed: boolean) => {
+  const updateMilestone = async (planId: string, milestoneId: string, completed: boolean) => {
     const plan = plans.find((p) => p.id === planId)
     if (!plan) return
-
-    const updatedMilestones = plan.milestones.map((milestone) =>
-      milestone.id === milestoneId
-        ? {
-            ...milestone,
-            completed,
-            completedAt: completed ? new Date().toISOString() : undefined,
-          }
-        : milestone,
+    const updatedMilestones = plan.milestones.map((m) =>
+      m.id === milestoneId ? { ...m, completed } : m
     )
-
-    const completedMilestones = updatedMilestones.filter((m) => m.completed).length
-    const progress = updatedMilestones.length > 0 ? (completedMilestones / updatedMilestones.length) * 100 : 0
-
-    updatePlan(planId, {
-      milestones: updatedMilestones,
-      progress: Math.round(progress),
-      status: progress === 100 ? "completed" : progress > 0 ? "in-progress" : "not-started",
-    })
+    return updatePlan(planId, { milestones: updatedMilestones })
   }
 
   return {
     plans,
-    loading,
+    isLoading,
     addPlan,
     updatePlan,
     deletePlan,

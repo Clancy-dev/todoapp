@@ -17,7 +17,7 @@ export async function createExpense(data: {
       data,
     })
 
-    revalidatePath("/")
+    revalidatePath("/expenses")
     return { success: true, expense }
   } catch (error) {
     return { success: false, error: "Failed to create expense" }
@@ -56,7 +56,7 @@ export async function updateExpense(
       data,
     })
 
-    revalidatePath("/")
+    revalidatePath("/expenses")
     return { success: true, expense }
   } catch (error) {
     return { success: false, error: "Failed to update expense" }
@@ -69,7 +69,7 @@ export async function deleteExpense(id: string) {
       where: { id },
     })
 
-    revalidatePath("/")
+    revalidatePath("/expenses")
     return { success: true }
   } catch (error) {
     return { success: false, error: "Failed to delete expense" }

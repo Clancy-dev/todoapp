@@ -72,7 +72,8 @@ model Note {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   title     String
   content   String
-  theme     String
+  color     String
+  category  String
   tags      String[]
   userId    String   @db.ObjectId
   createdAt DateTime @default(now())
@@ -90,6 +91,7 @@ model Plan {
   description String?
   category    String
   priority    String
+  progress     Int        @default(0)
   status      String
   targetDate  DateTime?
   milestones  Milestone[]
@@ -97,7 +99,6 @@ model Plan {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("plans")

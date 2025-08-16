@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
@@ -8,33 +10,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useTheme } from "@/hooks/use-theme"
-import { useSync } from "@/hooks/use-sync"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "react-hot-toast"
-import { UploadButton } from "@/lib/uploadthing"
 import { LoadingSpinner } from "@/components/loading-spinner"
-import {
-  Moon,
-  Sun,
-  Monitor,
-  Wifi,
-  WifiOff,
-  Download,
-  Trash2,
-  User,
-  Shield,
-  Bell,
-  Camera,
-  Key,
-  Eye,
-  Cloud,
-  CloudOff,
-} from "lucide-react"
+import { Moon, Sun, Monitor, Download, Trash2, User, Shield, Bell, Camera, Key, Eye } from "lucide-react"
 
 interface ChangePasswordForm {
   currentPassword: string
@@ -44,13 +26,12 @@ interface ChangePasswordForm {
 
 export function SettingsPage() {
   const { theme, setTheme, actualTheme } = useTheme()
-  const { isOnline, pendingSyncCount, isSyncing, syncAllData, loadDataFromServer } = useSync()
   const { user, logout, updateProfile, changePassword } = useAuth()
   const [notifications, setNotifications] = useState(true)
-  const [autoSync, setAutoSync] = useState(true)
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [showProfilePicture, setShowProfilePicture] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
 
   const passwordForm = useForm<ChangePasswordForm>({
     defaultValues: {
@@ -64,14 +45,19 @@ export function SettingsPage() {
     if (confirm("Are you sure you want to clear all data? This action cannot be undone.")) {
       localStorage.clear()
       toast.success("All local data has been cleared successfully.")
-      // Reload to reset the app state
       window.location.reload()
     }
   }
 
   const handleExportData = () => {
     try {
-      const data = {
+      const data: {
+        todos: Record<string, any[]>
+        expenses: any[]
+        notes: any[]
+        plans: any[]
+        exportDate: string
+      } = {
         todos: {},
         expenses: JSON.parse(localStorage.getItem(`expenses_${user?.id}`) || "[]"),
         notes: JSON.parse(localStorage.getItem(`notes_${user?.id}`) || "[]"),
@@ -79,7 +65,6 @@ export function SettingsPage() {
         exportDate: new Date().toISOString(),
       }
 
-      // Export todos for all dates
       const todoKeys = Object.keys(localStorage).filter((key) => key.startsWith(`todos_${user?.id}_`))
       todoKeys.forEach((key) => {
         const date = key.replace(`todos_${user?.id}_`, "")
@@ -120,19 +105,94 @@ export function SettingsPage() {
     }
   }
 
-  const handleProfilePictureUpload = (res: any) => {
-    if (res && res[0] && res[0].url) {
-      updateProfile({ profilePicture: res[0].url })
-      toast.success("Your profile picture has been updated successfully.")
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file")
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size must be less than 5MB")
+      return
+    }
+
+    setIsUploadingImage(true)
+
+    try {
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+      const img = new Image()
+
+      img.onload = async () => {
+        // Resize image to max 400x400 while maintaining aspect ratio
+        const maxSize = 400
+        let { width, height } = img
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = (height * maxSize) / width
+            width = maxSize
+          }
+        } else {
+          if (height > maxSize) {
+            width = (width * maxSize) / height
+            height = maxSize
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+
+        ctx?.drawImage(img, 0, 0, width, height)
+
+        // Convert to base64 with compression
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.8)
+
+        try {
+          await updateProfile({ profilePicture: compressedBase64 })
+          setShowProfilePicture(false)
+          toast.success("Profile picture updated successfully!")
+        } catch (error) {
+          console.error("Profile update error:", error)
+          toast.error("Failed to update profile picture")
+        } finally {
+          setIsUploadingImage(false)
+        }
+      }
+
+      img.onerror = () => {
+        toast.error("Failed to process image file")
+        setIsUploadingImage(false)
+      }
+
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        img.src = e.target?.result as string
+      }
+      reader.readAsDataURL(file)
+    } catch (error) {
+      console.error("Image upload error:", error)
+      toast.error("Failed to upload image")
+      setIsUploadingImage(false)
     }
   }
 
-  const handleSyncAllData = async () => {
-    await syncAllData()
-  }
+  const handleRemoveProfilePicture = async () => {
+    if (!confirm("Are you sure you want to remove your profile picture?")) {
+      return
+    }
 
-  const handleLoadFromServer = async () => {
-    await loadDataFromServer()
+    try {
+      // ✅ FIX: use undefined instead of null
+      await updateProfile({ profilePicture: undefined })
+      setShowProfilePicture(false)
+      toast.success("Profile picture removed successfully!")
+    } catch (error) {
+      toast.error("Failed to remove profile picture")
+    }
   }
 
   return (
@@ -142,7 +202,6 @@ export function SettingsPage() {
         <p className="text-gray-600 dark:text-gray-400 mt-2">Manage your preferences and app settings</p>
       </div>
 
-      {/* User Profile */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -196,7 +255,6 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Appearance */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -237,83 +295,6 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Sync & Offline */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {isOnline ? <Wifi className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
-            Sync & Database
-          </CardTitle>
-          <CardDescription>Manage offline functionality and database synchronization</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Connection Status</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {isOnline ? "Connected to internet" : "Offline mode active"}
-              </p>
-            </div>
-            <Badge variant={isOnline ? "default" : "secondary"}>{isOnline ? "Online" : "Offline"}</Badge>
-          </div>
-
-          {pendingSyncCount > 0 && (
-            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-              <p className="text-sm text-orange-800 dark:text-orange-200">{pendingSyncCount} changes waiting to sync</p>
-            </div>
-          )}
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Auto Sync</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Automatically sync when back online</p>
-            </div>
-            <Switch checked={autoSync} onCheckedChange={setAutoSync} />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <Button onClick={handleSyncAllData} disabled={!isOnline || isSyncing} variant="outline">
-              {isSyncing ? (
-                <>
-                  <LoadingSpinner size="sm" className="mr-2" />
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  <Cloud className="w-4 h-4 mr-2" />
-                  Sync to Database
-                </>
-              )}
-            </Button>
-
-            <Button onClick={handleLoadFromServer} disabled={!isOnline || isSyncing} variant="outline">
-              {isSyncing ? (
-                <>
-                  <LoadingSpinner size="sm" className="mr-2" />
-                  Loading...
-                </>
-              ) : (
-                <>
-                  <CloudOff className="w-4 h-4 mr-2" />
-                  Load from Database
-                </>
-              )}
-            </Button>
-          </div>
-
-          {!isOnline && (
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                You're offline. Changes are saved locally and will sync when you're back online.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Notifications */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -335,7 +316,6 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Data Management */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -357,7 +337,6 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* App Info */}
       <Card>
         <CardHeader>
           <CardTitle>About</CardTitle>
@@ -366,25 +345,21 @@ export function SettingsPage() {
         <CardContent>
           <div className="space-y-2 text-sm">
             <p>
-              <strong>Version:</strong> 2.0.0
+              <strong>Version:</strong> 1.0.0
             </p>
             <p>
               <strong>Build:</strong> {new Date().toISOString().split("T")[0]}
             </p>
             <p>
-              <strong>Storage:</strong> Hybrid (Local + MongoDB)
+              <strong>Storage:</strong> Local Storage
             </p>
             <p>
-              <strong>Offline Support:</strong> Enabled
-            </p>
-            <p>
-              <strong>Database:</strong> {isOnline ? "Connected" : "Offline"}
+              <strong>Offline Support:</strong> Full
             </p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Change Password Modal */}
       <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -447,7 +422,6 @@ export function SettingsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Profile Picture Modal */}
       <Dialog open={showProfilePicture} onOpenChange={setShowProfilePicture}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -467,18 +441,35 @@ export function SettingsPage() {
 
             <div className="space-y-2">
               <Label>Upload New Picture</Label>
-              <UploadButton
-                endpoint="imageUploader"
-                onClientUploadComplete={handleProfilePictureUpload}
-                onUploadError={(error: Error) => {
-                  toast.error(`Upload failed: ${error.message}`)
-                }}
-              />
+              <div className="flex flex-col gap-2">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={isUploadingImage}
+                  className="cursor-pointer"
+                />
+                <p className="text-xs text-gray-500">Supported formats: JPG, PNG, GIF (max 5MB)</p>
+
+                {isUploadingImage && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600">
+                    <LoadingSpinner size="sm" />
+                    Uploading image...
+                  </div>
+                )}
+              </div>
             </div>
 
-            <Button variant="outline" onClick={() => setShowProfilePicture(false)} className="w-full">
-              Close
-            </Button>
+            <div className="flex gap-2">
+              {user?.profilePicture && (
+                <Button variant="outline" onClick={handleRemoveProfilePicture} className="flex-1 bg-transparent">
+                  Remove Picture
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setShowProfilePicture(false)} className="flex-1">
+                Close
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

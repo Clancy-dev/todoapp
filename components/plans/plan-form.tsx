@@ -23,11 +23,11 @@ interface PlanFormProps {
 
 export interface PlanFormData {
   title: string
-  description: string
+  description?: string
   category: string
   priority: "low" | "medium" | "high"
   status: "not-started" | "in-progress" | "completed" | "on-hold"
-  targetDate: string
+  targetDate?: string
   progress: number
   milestones: Milestone[]
 }
@@ -52,7 +52,7 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
       category: "Personal",
       priority: "medium",
       status: "not-started",
-      targetDate: "",
+      targetDate: undefined,
       progress: 0,
       milestones: [],
     },
@@ -64,44 +64,22 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
   })
 
   useEffect(() => {
-    if (isOpen) {
-      const savedFormData = localStorage.getItem("planFormData")
-      if (savedFormData && !plan) {
-        try {
-          const parsedData = JSON.parse(savedFormData)
-          form.reset(parsedData)
-        } catch (error) {
-          console.error("Error loading saved form data:", error)
-        }
-      } else if (plan) {
-        form.reset({
-          title: plan.title,
-          description: plan.description,
-          category: plan.category,
-          priority: plan.priority,
-          status: plan.status,
-          targetDate: plan.targetDate || "",
-          progress: plan.progress,
-          milestones: plan.milestones,
-        })
-      }
+    if (plan) {
+      form.reset({
+        title: plan.title,
+        description: plan.description ?? "",
+        category: plan.category,
+        priority: plan.priority,
+        status: plan.status,
+        targetDate: plan.targetDate ? plan.targetDate : undefined,
+        progress: plan.progress,
+        milestones: plan.milestones,
+      })
     }
-  }, [isOpen, plan, form])
-
-  useEffect(() => {
-    const subscription = form.watch((data) => {
-      if (isOpen && !plan) {
-        localStorage.setItem("planFormData", JSON.stringify(data))
-      }
-    })
-    return () => subscription.unsubscribe()
-  }, [form, isOpen, plan])
+  }, [plan, form])
 
   const handleSubmit = (data: PlanFormData) => {
     onSubmit(data)
-    if (!plan) {
-      localStorage.removeItem("planFormData")
-    }
     form.reset()
   }
 
@@ -109,24 +87,10 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
     onClose()
   }
 
-  const clearForm = () => {
-    form.reset({
-      title: "",
-      description: "",
-      category: "Personal",
-      priority: "medium",
-      status: "not-started",
-      targetDate: "",
-      progress: 0,
-      milestones: [],
-    })
-    localStorage.removeItem("planFormData")
-  }
-
   const addMilestone = () => {
     append({
       id: Date.now().toString(),
-      title: "",
+      text: "",
       completed: false,
     })
   }
@@ -144,27 +108,13 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="title">Title *</Label>
-            <Input
-              id="title"
-              placeholder="Enter plan title"
-              {...form.register("title", { required: "Title is required" })}
-            />
-            {form.formState.errors.title && (
-              <p className="text-sm text-red-600">{form.formState.errors.title.message}</p>
-            )}
+            <Input id="title" {...form.register("title", { required: "Title is required" })} />
+            {form.formState.errors.title && <p className="text-red-600">{form.formState.errors.title.message}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="description">Description *</Label>
-            <Textarea
-              id="description"
-              placeholder="Describe your long-term plan and goals..."
-              rows={4}
-              {...form.register("description", { required: "Description is required" })}
-            />
-            {form.formState.errors.description && (
-              <p className="text-sm text-red-600">{form.formState.errors.description.message}</p>
-            )}
+            <Textarea id="description" {...form.register("description")} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -230,7 +180,7 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="progress">Progress: {form.watch("progress")}%</Label>
+            <Label>Progress: {form.watch("progress")}%</Label>
             <Slider
               value={[form.watch("progress")]}
               onValueChange={(value) => form.setValue("progress", value[0])}
@@ -251,12 +201,7 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
 
             {fields.map((field, index) => (
               <div key={field.id} className="flex gap-2 items-center">
-                <Input
-                  placeholder="Milestone title"
-                  {...form.register(`milestones.${index}.title` as const, {
-                    required: "Milestone title is required",
-                  })}
-                />
+                <Input placeholder="Milestone title" {...form.register(`milestones.${index}.text` as const)} />
                 <Button type="button" variant="outline" size="sm" onClick={() => remove(index)}>
                   <Trash2 className="w-4 h-4" />
                 </Button>
@@ -267,9 +212,6 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
           <div className="flex gap-2 pt-4">
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
-            </Button>
-            <Button type="button" variant="outline" onClick={clearForm}>
-              Clear
             </Button>
             <Button type="submit" className="flex-1" disabled={isLoading}>
               {isLoading ? <LoadingSpinner size="sm" /> : plan ? "Update Plan" : "Create Plan"}

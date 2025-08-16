@@ -115,7 +115,7 @@ export function PlanDetailsModal({ isOpen, onClose, plan, onUpdateMilestone }: P
                       />
                       <div className="flex-1 min-w-0">
                         <p className={cn("text-sm", milestone.completed && "line-through text-gray-500")}>
-                          {milestone.title}
+                          {milestone.text}
                         </p>
                         {milestone.completed && milestone.completedAt && (
                           <p className="text-xs text-gray-500 mt-1">

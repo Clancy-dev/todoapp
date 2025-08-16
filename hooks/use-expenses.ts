@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { toast } from "react-hot-toast"
 import { useAuth } from "@/hooks/use-auth"
-import { syncService } from "@/lib/sync-service"
 import {
   createExpense,
   getExpensesByUser,
@@ -21,7 +20,13 @@ export interface Transaction {
   date: string
   createdAt: string
   updatedAt: string
-  userId?: string
+  userId: string
+}
+
+// Helper to cast server type string to union
+const mapType = (t: string): "income" | "expense" => {
+  if (t === "income" || t === "expense") return t
+  return "expense"
 }
 
 export function useExpenses() {
@@ -29,39 +34,36 @@ export function useExpenses() {
   const [loading, setLoading] = useState(true)
   const { user } = useAuth()
 
-  const getStorageKey = () => {
-    return user ? `expenses_${user.id}` : "expenses_guest"
-  }
-
   useEffect(() => {
     const loadTransactions = async () => {
+      if (!user) {
+        setTransactions([])
+        setLoading(false)
+        return
+      }
+
       try {
         setLoading(true)
-
-        // Always load from localStorage first (works offline)
-        const savedTransactions = localStorage.getItem(getStorageKey())
-        if (savedTransactions) {
-          setTransactions(JSON.parse(savedTransactions))
+        const result = await getExpensesByUser(user.id)
+        if (result.success && Array.isArray(result.expenses)) {
+          const mapped: Transaction[] = result.expenses.map((t: any) => ({
+            ...t,
+            description: t.description ?? undefined,
+            date: t.date ? new Date(t.date).toISOString() : new Date().toISOString(),
+            createdAt: new Date(t.createdAt).toISOString(),
+            updatedAt: new Date(t.updatedAt).toISOString(),
+            type: mapType(t.type),
+          }))
+          setTransactions(mapped)
         } else {
+          console.error("Failed to load expenses:", result.error)
+          toast.error("Failed to load transactions")
           setTransactions([])
-        }
-
-        // If online and user exists, try to load from server
-        if (user && syncService.getIsOnline()) {
-          try {
-            const result = await getExpensesByUser(user.id)
-            if (result.success) {
-              localStorage.setItem(getStorageKey(), JSON.stringify(result.expenses))
-              setTransactions(result.expenses)
-            }
-          } catch (error) {
-            console.error("Failed to load expenses from server:", error)
-            // Continue with local data
-          }
         }
       } catch (error) {
         console.error("Error loading transactions:", error)
         toast.error("Failed to load transactions")
+        setTransactions([])
       } finally {
         setLoading(false)
       }
@@ -70,131 +72,95 @@ export function useExpenses() {
     loadTransactions()
   }, [user])
 
-  const saveTransactions = (newTransactions: Transaction[]) => {
-    try {
-      localStorage.setItem(getStorageKey(), JSON.stringify(newTransactions))
-      setTransactions(newTransactions)
-    } catch (error) {
-      console.error("Error saving transactions:", error)
-      toast.error("Failed to save transactions")
-    }
-  }
-
   const addTransaction = async (transactionData: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "userId">) => {
-    const newTransaction: Transaction = {
-      ...transactionData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      userId: user?.id,
+    if (!user) {
+      toast.error("Please log in to add transactions")
+      return null
     }
 
-    // Save locally first
-    const newTransactions = [...transactions, newTransaction]
-    saveTransactions(newTransactions)
-
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const serverData = {
-          ...newTransaction,
-          date: new Date(newTransaction.date),
-        }
-        const result = await createExpense(serverData)
-        if (result.success) {
-          toast.success(`${transactionData.type === "income" ? "Income" : "Expense"} added successfully`)
-          return result.expense
-        }
-      } catch (error) {
-        console.error("Failed to create expense on server:", error)
-      }
-    }
-
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "create",
-        entity: "expense",
-        data: newTransaction,
+    try {
+      const serverData = {
+        ...transactionData,
+        date: transactionData.date ? new Date(transactionData.date) : new Date(),
         userId: user.id,
-      })
-    }
+      }
 
-    toast.success(`${transactionData.type === "income" ? "Income" : "Expense"} added successfully`)
-    return newTransaction
+      const result = await createExpense(serverData)
+      if (result.success && result.expense) {
+        const mapped: Transaction = {
+          ...result.expense,
+          description: result.expense.description ?? undefined,
+          date: result.expense.date ? new Date(result.expense.date).toISOString() : new Date().toISOString(),
+          createdAt: new Date(result.expense.createdAt).toISOString(),
+          updatedAt: new Date(result.expense.updatedAt).toISOString(),
+          type: mapType(result.expense.type),
+        }
+        setTransactions((prev) => [...prev, mapped])
+        toast.success(`${transactionData.type === "income" ? "Income" : "Expense"} added successfully`)
+        return mapped
+      } else {
+        toast.error(result.error || "Failed to add transaction")
+        return null
+      }
+    } catch (error) {
+      console.error("Failed to create expense:", error)
+      toast.error("Failed to add transaction")
+      return null
+    }
   }
 
   const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
-    const updatedTransaction = {
-      ...updates,
-      updatedAt: new Date().toISOString(),
+    if (!user) {
+      toast.error("Please log in to update transactions")
+      return
     }
 
-    // Update locally first
-    const newTransactions = transactions.map((transaction) =>
-      transaction.id === id ? { ...transaction, ...updatedTransaction } : transaction,
-    )
-    saveTransactions(newTransactions)
-
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const serverData = {
-          ...updatedTransaction,
-          date: updatedTransaction.date ? new Date(updatedTransaction.date) : undefined,
-        }
-        const result = await updateExpenseServer(id, serverData)
-        if (result.success) {
-          toast.success("Transaction updated successfully")
-          return
-        }
-      } catch (error) {
-        console.error("Failed to update expense on server:", error)
+    try {
+      const updatedData = {
+        ...updates,
+        updatedAt: new Date(),
+        date: updates.date ? new Date(updates.date) : undefined,
       }
-    }
 
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "update",
-        entity: "expense",
-        data: { id, ...updatedTransaction },
-        userId: user.id,
-      })
+      const result = await updateExpenseServer(id, updatedData)
+      if (result.success && result.expense) {
+        const mapped: Transaction = {
+          ...result.expense,
+          description: result.expense.description ?? undefined,
+          date: result.expense.date ? new Date(result.expense.date).toISOString() : new Date().toISOString(),
+          createdAt: new Date(result.expense.createdAt).toISOString(),
+          updatedAt: new Date(result.expense.updatedAt).toISOString(),
+          type: mapType(result.expense.type),
+        }
+        setTransactions((prev) => prev.map((t) => (t.id === id ? mapped : t)))
+        toast.success("Transaction updated successfully")
+      } else {
+        toast.error(result.error || "Failed to update transaction")
+      }
+    } catch (error) {
+      console.error("Failed to update expense:", error)
+      toast.error("Failed to update transaction")
     }
-
-    toast.success("Transaction updated successfully")
   }
 
   const deleteTransaction = async (id: string) => {
-    // Delete locally first
-    const newTransactions = transactions.filter((transaction) => transaction.id !== id)
-    saveTransactions(newTransactions)
+    if (!user) {
+      toast.error("Please log in to delete transactions")
+      return
+    }
 
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const result = await deleteExpenseServer(id)
-        if (result.success) {
-          toast.success("Transaction deleted successfully")
-          return
-        }
-      } catch (error) {
-        console.error("Failed to delete expense on server:", error)
+    try {
+      const result = await deleteExpenseServer(id)
+      if (result.success) {
+        setTransactions((prev) => prev.filter((t) => t.id !== id))
+        toast.success("Transaction deleted successfully")
+      } else {
+        toast.error(result.error || "Failed to delete transaction")
       }
+    } catch (error) {
+      console.error("Failed to delete expense:", error)
+      toast.error("Failed to delete transaction")
     }
-
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "delete",
-        entity: "expense",
-        data: { id },
-        userId: user.id,
-      })
-    }
-
-    toast.success("Transaction deleted successfully")
   }
 
   // Calculate totals

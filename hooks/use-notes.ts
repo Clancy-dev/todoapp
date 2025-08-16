@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react"
 import { toast } from "react-hot-toast"
 import { useAuth } from "@/hooks/use-auth"
-import { syncService } from "@/lib/sync-service"
 import {
-  createNote,
+  createNote as createNoteServer,
   getNotesByUser,
   updateNote as updateNoteServer,
   deleteNote as deleteNoteServer,
@@ -15,7 +14,8 @@ export interface Note {
   id: string
   title: string
   content: string
-  theme: string
+  category: string
+  color: string
   tags: string[]
   createdAt: string
   updatedAt: string
@@ -27,162 +27,139 @@ export function useNotes() {
   const [loading, setLoading] = useState(true)
   const { user } = useAuth()
 
-  const getStorageKey = () => {
-    return user ? `notes_${user.id}` : "notes_guest"
-  }
-
+  // Load notes when user is available
   useEffect(() => {
-    const loadNotes = async () => {
-      try {
-        setLoading(true)
+    if (!user?.id) return
 
-        // Always load from localStorage first (works offline)
-        const savedNotes = localStorage.getItem(getStorageKey())
-        if (savedNotes) {
-          setNotes(JSON.parse(savedNotes))
+    const loadNotes = async () => {
+      setLoading(true)
+      try {
+        const result = await getNotesByUser(user.id)
+        if (result.success && result.notes) {
+          const mappedNotes: Note[] = result.notes.map((n: any) => ({
+            id: n.id,
+            title: n.title,
+            content: n.content,
+            category: n.category || "Learning",
+            color: n.color,
+            tags: n.tags,
+            createdAt: new Date(n.createdAt).toISOString(),
+            updatedAt: new Date(n.updatedAt).toISOString(),
+            userId: n.userId,
+          }))
+          setNotes(mappedNotes)
         } else {
           setNotes([])
+          toast.error(result.error || "Failed to load notes")
         }
-
-        // If online and user exists, try to load from server
-        if (user && syncService.getIsOnline()) {
-          try {
-            const result = await getNotesByUser(user.id)
-            if (result.success) {
-              localStorage.setItem(getStorageKey(), JSON.stringify(result.notes))
-              setNotes(result.notes)
-            }
-          } catch (error) {
-            console.error("Failed to load notes from server:", error)
-            // Continue with local data
-          }
-        }
-      } catch (error) {
-        console.error("Error loading notes:", error)
+      } catch (err) {
+        console.error("Error loading notes:", err)
         toast.error("Failed to load notes")
+        setNotes([])
       } finally {
         setLoading(false)
       }
     }
 
     loadNotes()
-  }, [user])
+  }, [user?.id])
 
-  const saveNotes = (newNotes: Note[]) => {
+  // Add note
+  const addNote = async (noteData: {
+    title: string
+    content: string
+    color: string
+    tags: string[]
+  }) => {
+    if (!user?.id) {
+      toast.error("Please log in to create notes")
+      return null
+    }
+
     try {
-      localStorage.setItem(getStorageKey(), JSON.stringify(newNotes))
-      setNotes(newNotes)
-    } catch (error) {
-      console.error("Error saving notes:", error)
-      toast.error("Failed to save notes")
-    }
-  }
-
-  const addNote = async (noteData: Omit<Note, "id" | "createdAt" | "updatedAt" | "userId">) => {
-    const newNote: Note = {
-      ...noteData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      userId: user?.id,
-    }
-
-    // Save locally first
-    const newNotes = [...notes, newNote]
-    saveNotes(newNotes)
-
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const result = await createNote(newNote)
-        if (result.success) {
-          toast.success("Note created successfully")
-          return result.note
-        }
-      } catch (error) {
-        console.error("Failed to create note on server:", error)
-      }
-    }
-
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "create",
-        entity: "note",
-        data: newNote,
+      const { title, content, color, tags } = noteData
+      const result = await createNoteServer({
+        title,
+        content,
+        color,
+        tags,
         userId: user.id,
       })
-    }
 
-    toast.success("Note created successfully")
-    return newNote
+      if (result.success && result.note) {
+        const newNote: Note = {
+          ...result.note,
+          createdAt: new Date(result.note.createdAt).toISOString(),
+          updatedAt: new Date(result.note.updatedAt).toISOString(),
+        }
+        // Add new note at the start so it shows immediately
+        setNotes((prev) => [newNote, ...prev])
+        toast.success("Note created successfully")
+        return newNote
+      } else {
+        toast.error(result.error || "Failed to create note")
+        return null
+      }
+    } catch (err) {
+      console.error("Failed to create note:", err)
+      toast.error("Failed to create note")
+      return null
+    }
   }
 
+  // Update note
   const updateNote = async (id: string, updates: Partial<Note>) => {
-    const updatedNote = {
-      ...updates,
-      updatedAt: new Date().toISOString(),
+    if (!user?.id) {
+      toast.error("Please log in to update notes")
+      return
     }
 
-    // Update locally first
-    const newNotes = notes.map((note) => (note.id === id ? { ...note, ...updatedNote } : note))
-    saveNotes(newNotes)
+    try {
+      const updatedData: any = {}
+      if (updates.title !== undefined) updatedData.title = updates.title
+      if (updates.content !== undefined) updatedData.content = updates.content
+      if (updates.color !== undefined) updatedData.color = updates.color
+      if (updates.tags !== undefined) updatedData.tags = updates.tags
+      if (updates.category !== undefined) updatedData.category = updates.category
 
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const result = await updateNoteServer(id, updatedNote)
-        if (result.success) {
-          toast.success("Note updated successfully")
-          return
+      const result = await updateNoteServer(id, updatedData)
+
+      if (result.success && result.note) {
+        const updatedNote: Note = {
+          ...result.note,
+          createdAt: new Date(result.note.createdAt).toISOString(),
+          updatedAt: new Date(result.note.updatedAt).toISOString(),
         }
-      } catch (error) {
-        console.error("Failed to update note on server:", error)
+        setNotes((prev) => prev.map((note) => (note.id === id ? updatedNote : note)))
+        toast.success("Note updated successfully")
+      } else {
+        toast.error(result.error || "Failed to update note")
       }
+    } catch (err) {
+      console.error("Failed to update note:", err)
+      toast.error("Failed to update note")
     }
-
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "update",
-        entity: "note",
-        data: { id, ...updatedNote },
-        userId: user.id,
-      })
-    }
-
-    toast.success("Note updated successfully")
   }
 
+  // Delete note
   const deleteNote = async (id: string) => {
-    // Delete locally first
-    const newNotes = notes.filter((note) => note.id !== id)
-    saveNotes(newNotes)
+    if (!user?.id) {
+      toast.error("Please log in to delete notes")
+      return
+    }
 
-    // Try to sync with server
-    if (user && syncService.getIsOnline()) {
-      try {
-        const result = await deleteNoteServer(id)
-        if (result.success) {
-          toast.success("Note deleted successfully")
-          return
-        }
-      } catch (error) {
-        console.error("Failed to delete note on server:", error)
+    try {
+      const result = await deleteNoteServer(id)
+      if (result.success) {
+        setNotes((prev) => prev.filter((note) => note.id !== id))
+        toast.success("Note deleted successfully")
+      } else {
+        toast.error(result.error || "Failed to delete note")
       }
+    } catch (err) {
+      console.error("Failed to delete note:", err)
+      toast.error("Failed to delete note")
     }
-
-    // Add to sync queue if offline or server failed
-    if (user) {
-      syncService.addToSyncQueue({
-        type: "delete",
-        entity: "note",
-        data: { id },
-        userId: user.id,
-      })
-    }
-
-    toast.success("Note deleted successfully")
   }
 
   return {

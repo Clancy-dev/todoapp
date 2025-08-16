@@ -5,10 +5,9 @@ import { GeistMono } from "geist/font/mono"
 import { NextSSRPlugin } from "@uploadthing/react/next-ssr-plugin"
 import { extractRouterConfig } from "uploadthing/server"
 import "./globals.css"
-import { AuthProvider } from "@/hooks/use-auth"
-import { ThemeProvider } from "@/hooks/use-theme"
-import { Toaster } from "@/components/ui/toaster"
+// import { Toaster } from "@/components/ui/toaster"
 import { ourFileRouter } from "@/app/api/uploadthing/core"
+import { Toaster } from "react-hot-toast"
 
 export const metadata: Metadata = {
   title: "TaskMaster Pro",
@@ -34,12 +33,8 @@ html {
       </head>
       <body>
         <NextSSRPlugin routerConfig={extractRouterConfig(ourFileRouter)} />
-        <ThemeProvider>
-          <AuthProvider>
-            {children}
-            <Toaster />
-          </AuthProvider>
-        </ThemeProvider>
+        {children}
+        <Toaster />
       </body>
     </html>
   )

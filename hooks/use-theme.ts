@@ -1,61 +1,84 @@
 "use client"
 
-import type React from "react"
-
-import { createContext, useContext, useEffect, useState } from "react"
-
 type Theme = "light" | "dark" | "system"
 
-interface ThemeContextType {
+interface ThemeState {
   theme: Theme
-  setTheme: (theme: Theme) => void
   actualTheme: "light" | "dark"
 }
 
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
+// Global theme state
+const themeState: ThemeState = {
+  theme: "system",
+  actualTheme: "light",
+}
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("system")
-  const [actualTheme, setActualTheme] = useState<"light" | "dark">("light")
+// Listeners for theme changes
+const themeListeners: (() => void)[] = []
 
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as Theme
-    if (savedTheme) {
-      setTheme(savedTheme)
+// Initialize theme on client side
+if (typeof window !== "undefined") {
+  const savedTheme = localStorage.getItem("theme") as Theme
+  if (savedTheme) {
+    themeState.theme = savedTheme
+  }
+  updateActualTheme()
+}
+
+function updateActualTheme() {
+  if (typeof window === "undefined") return
+
+  let newTheme: "light" | "dark"
+
+  if (themeState.theme === "system") {
+    newTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+  } else {
+    newTheme = themeState.theme
+  }
+
+  themeState.actualTheme = newTheme
+  document.documentElement.classList.toggle("dark", newTheme === "dark")
+  localStorage.setItem("theme", themeState.theme)
+
+  // Notify all listeners
+  themeListeners.forEach((listener) => listener())
+}
+
+// Listen for system theme changes
+if (typeof window !== "undefined") {
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
+  mediaQuery.addEventListener("change", () => {
+    if (themeState.theme === "system") {
+      updateActualTheme()
     }
-  }, [])
-
-  useEffect(() => {
-    const updateTheme = () => {
-      let newTheme: "light" | "dark"
-
-      if (theme === "system") {
-        newTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
-      } else {
-        newTheme = theme
-      }
-
-      setActualTheme(newTheme)
-      document.documentElement.classList.toggle("dark", newTheme === "dark")
-      localStorage.setItem("theme", theme)
-    }
-
-    updateTheme()
-
-    if (theme === "system") {
-      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
-      mediaQuery.addEventListener("change", updateTheme)
-      return () => mediaQuery.removeEventListener("change", updateTheme)
-    }
-  }, [theme])
-
-  return <ThemeContext.Provider value={{ theme, setTheme, actualTheme }}>{children}</ThemeContext.Provider>
+  })
 }
 
 export function useTheme() {
-  const context = useContext(ThemeContext)
-  if (!context) {
-    throw new Error("useTheme must be used within a ThemeProvider")
+  const [, forceUpdate] = useState({})
+
+  useEffect(() => {
+    const listener = () => forceUpdate({})
+    themeListeners.push(listener)
+
+    return () => {
+      const index = themeListeners.indexOf(listener)
+      if (index > -1) {
+        themeListeners.splice(index, 1)
+      }
+    }
+  }, [])
+
+  const setTheme = (newTheme: Theme) => {
+    themeState.theme = newTheme
+    updateActualTheme()
   }
-  return context
+
+  return {
+    theme: themeState.theme,
+    setTheme,
+    actualTheme: themeState.actualTheme,
+  }
 }
+
+import { useState, useEffect } from "react"

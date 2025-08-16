@@ -13,7 +13,7 @@ import { TodoItem } from "@/components/todo/todo-item"
 import { TodoDetailsModal } from "@/components/todo/todo-details-modal"
 import { DeleteConfirmationModal } from "@/components/todo/delete-confirmation-modal"
 
-export function TodoPage() {
+export default function TodoPage() {
   const [selectedDate, setSelectedDate] = useState(() => {
     return new Date().toISOString().split("T")[0]
   })

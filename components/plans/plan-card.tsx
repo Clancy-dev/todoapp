@@ -117,7 +117,7 @@ export function PlanCard({ plan, onEdit, onDelete, onViewDetails, onUpdateMilest
                       checked={milestone.completed}
                       onCheckedChange={(checked) => onUpdateMilestone(plan.id, milestone.id, !!checked)}
                     />
-                    <span className={cn(milestone.completed && "line-through text-gray-500")}>{milestone.title}</span>
+                    <span className={cn(milestone.completed && "line-through text-gray-500")}>{milestone.text}</span>
                   </div>
                 ))}
                 {plan.milestones.length > 3 && (

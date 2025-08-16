@@ -1,14 +1,14 @@
 "use client"
 
-import { useState, useEffect, createContext, useContext, type ReactNode } from "react"
+import { useState, useEffect } from "react"
 import { toast } from "react-hot-toast"
-import { syncService } from "@/lib/sync-service"
 import {
-  createUser,
-  authenticateUser,
-  resetPasswordWithSecurity as resetPasswordServer,
+  loginUser,
+  registerUser,
   updateUserProfile,
-  changePassword as changePasswordServer,
+  changeUserPassword,
+  resetUserPassword,
+  getUserById,
 } from "@/lib/actions/auth"
 
 export interface User {
@@ -21,113 +21,106 @@ export interface User {
   lastActivity?: string
 }
 
-interface AuthContextType {
-  user: User | null
-  loading: boolean
-  login: (email: string, password: string) => Promise<boolean>
-  register: (
-    name: string,
-    email: string,
-    password: string,
-    securityQuestion: string,
-    securityAnswer: string,
-    profilePicture?: string,
-  ) => Promise<boolean>
-  logout: () => void
-  updateProfile: (updates: Partial<User>) => Promise<void>
-  changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>
-  resetPasswordWithSecurity: (email: string, securityAnswer: string, newPassword: string) => Promise<boolean>
-  checkSession: () => void
-}
+// Simple authentication state management
+let currentUser: User | null = null
+let authListeners: Array<(user: User | null) => void> = []
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+export function useAuth() {
+  const [user, setUser] = useState<User | null>(currentUser)
   const [loading, setLoading] = useState(true)
-
-  const checkSession = () => {
-    const savedUser = localStorage.getItem("currentUser")
-    if (savedUser) {
-      const userData = JSON.parse(savedUser)
-      const lastActivity = userData.lastActivity ? new Date(userData.lastActivity) : new Date()
-      const now = new Date()
-      const daysDiff = (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
-
-      if (daysDiff > 1) {
-        // Session expired
-        localStorage.removeItem("currentUser")
-        setUser(null)
-        toast.error("Session expired. Please log in again.")
-        return
-      }
-
-      // Update last activity
-      const updatedUser = { ...userData, lastActivity: now.toISOString() }
-      localStorage.setItem("currentUser", JSON.stringify(updatedUser))
-      setUser(updatedUser)
-    }
-  }
 
   useEffect(() => {
     checkSession()
     setLoading(false)
 
+    // Add this component to listeners
+    authListeners.push(setUser)
+
     // Check session every 5 minutes
     const interval = setInterval(checkSession, 5 * 60 * 1000)
-    return () => clearInterval(interval)
+
+    return () => {
+      // Remove listener on cleanup
+      authListeners = authListeners.filter((listener) => listener !== setUser)
+      clearInterval(interval)
+    }
   }, [])
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    try {
-      // Try server authentication first if online
-      if (syncService.getIsOnline()) {
-        const result = await authenticateUser(email, password)
+  const checkSession = async () => {
+    const sessionData = sessionStorage.getItem("userSession")
+    if (sessionData) {
+      try {
+        const { userId, lastActivity } = JSON.parse(sessionData)
+        const lastActivityDate = new Date(lastActivity)
+        const now = new Date()
+        const daysDiff = (now.getTime() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24)
+
+        if (daysDiff > 1) {
+          // Session expired
+          sessionStorage.removeItem("userSession")
+          updateAuthState(null)
+          toast.error("Session expired. Please log in again.")
+          return
+        }
+
+        const result = await getUserById(userId)
         if (result.success && result.user) {
           const userWithActivity = {
             ...result.user,
-            initials: result.user.name
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .toUpperCase()
-              .slice(0, 2),
-            lastActivity: new Date().toISOString(),
+            lastActivity: now.toISOString(),
           }
-          setUser(userWithActivity)
-          localStorage.setItem("currentUser", JSON.stringify(userWithActivity))
-
-          // Load user data from server
-          await syncService.loadDataFromServer(result.user.id)
-
-          toast.success(`Welcome back, ${result.user.name}!`)
-          return true
+          updateAuthState(userWithActivity)
+          // Update session with new activity time
+          sessionStorage.setItem(
+            "userSession",
+            JSON.stringify({
+              userId: result.user.id,
+              lastActivity: now.toISOString(),
+            }),
+          )
         } else {
-          toast.error(result.error || "Login failed")
-          return false
+          sessionStorage.removeItem("userSession")
+          updateAuthState(null)
         }
+      } catch (error) {
+        console.error("Session check error:", error)
+        sessionStorage.removeItem("userSession")
+        updateAuthState(null)
       }
+    }
+  }
 
-      // Fallback to local authentication
-      const users = JSON.parse(localStorage.getItem("users") || "[]")
-      const foundUser = users.find((u: any) => u.email === email && u.password === password)
+  const updateAuthState = (newUser: User | null) => {
+    currentUser = newUser
+    authListeners.forEach((listener) => listener(newUser))
+  }
 
-      if (foundUser) {
-        const userWithoutPassword = {
-          id: foundUser.id,
-          name: foundUser.name,
-          email: foundUser.email,
-          initials: foundUser.initials,
-          profilePicture: foundUser.profilePicture,
-          securityQuestion: foundUser.securityQuestion,
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const result = await loginUser(email, password)
+
+      if (result.success && result.user) {
+        const userWithActivity: User = {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          initials: result.user.initials,
+          profilePicture: result.user.profilePicture,
+          securityQuestion: result.user.securityQuestion,
           lastActivity: new Date().toISOString(),
         }
-        setUser(userWithoutPassword)
-        localStorage.setItem("currentUser", JSON.stringify(userWithoutPassword))
-        toast.success(`Welcome back, ${foundUser.name}!`)
+        updateAuthState(userWithActivity)
+        sessionStorage.setItem(
+          "userSession",
+          JSON.stringify({
+            userId: result.user.id,
+            lastActivity: new Date().toISOString(),
+          }),
+        )
+        toast.success(`Welcome back, ${result.user.name}!`)
         return true
       } else {
-        toast.error("Invalid email or password")
+        toast.error(result.error || "Invalid email or password")
         return false
       }
     } catch (error) {
@@ -146,80 +139,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profilePicture?: string,
   ): Promise<boolean> => {
     try {
-      // Try server registration first if online
-      if (syncService.getIsOnline()) {
-        const result = await createUser({
-          name,
-          email,
-          password,
-          securityQuestion,
-          securityAnswer,
-          profilePicture,
-        })
+      const result = await registerUser(name, email, password, securityQuestion, securityAnswer, profilePicture)
 
-        if (result.success && result.user) {
-          const userWithActivity = {
-            ...result.user,
-            initials: result.user.name
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .toUpperCase()
-              .slice(0, 2),
-            lastActivity: new Date().toISOString(),
-          }
-          setUser(userWithActivity)
-          localStorage.setItem("currentUser", JSON.stringify(userWithActivity))
-          toast.success(`Welcome, ${result.user.name}!`)
-          return true
-        } else {
-          toast.error(result.error || "Registration failed")
-          return false
+      if (result.success && result.user) {
+        const userWithActivity: User = {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          initials: result.user.initials,
+          profilePicture: result.user.profilePicture,
+          securityQuestion: result.user.securityQuestion,
+          lastActivity: new Date().toISOString(),
         }
-      }
-
-      // Fallback to local registration
-      const users = JSON.parse(localStorage.getItem("users") || "[]")
-
-      if (users.find((u: any) => u.email === email)) {
-        toast.error("User with this email already exists")
+        updateAuthState(userWithActivity)
+        sessionStorage.setItem(
+          "userSession",
+          JSON.stringify({
+            userId: result.user.id,
+            lastActivity: new Date().toISOString(),
+          }),
+        )
+        toast.success(`Welcome, ${name}!`)
+        return true
+      } else {
+        toast.error(result.error || "Registration failed")
         return false
       }
-
-      const newUser = {
-        id: Date.now().toString(),
-        name,
-        email,
-        password,
-        securityQuestion,
-        securityAnswer: securityAnswer.toLowerCase().trim(),
-        profilePicture,
-        initials: name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .toUpperCase()
-          .slice(0, 2),
-        createdAt: new Date().toISOString(),
-      }
-
-      users.push(newUser)
-      localStorage.setItem("users", JSON.stringify(users))
-
-      const userWithoutPassword = {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        initials: newUser.initials,
-        profilePicture: newUser.profilePicture,
-        securityQuestion: newUser.securityQuestion,
-        lastActivity: new Date().toISOString(),
-      }
-      setUser(userWithoutPassword)
-      localStorage.setItem("currentUser", JSON.stringify(userWithoutPassword))
-
-      toast.success(`Welcome, ${name}!`)
-      return true
     } catch (error) {
       console.error("Registration error:", error)
       toast.error("Registration failed. Please try again.")
@@ -227,66 +172,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateProfile = async (updates: Partial<User>) => {
+  const updateProfile = async (updates: Partial<User>): Promise<void> => {
     if (!user) return
 
-    const updatedUser = { ...user, ...updates, lastActivity: new Date().toISOString() }
-    setUser(updatedUser)
-    localStorage.setItem("currentUser", JSON.stringify(updatedUser))
+    try {
+      const result = await updateUserProfile(user.id, updates)
 
-    // Try to update on server if online
-    if (syncService.getIsOnline()) {
-      try {
-        const result = await updateUserProfile(user.id, updates)
-        if (result.success) {
-          toast.success("Profile updated successfully")
-          return
+      if (result.success && result.user) {
+        const updatedUser = {
+          ...result.user,
+          lastActivity: new Date().toISOString(),
         }
-      } catch (error) {
-        console.error("Failed to update profile on server:", error)
+        updateAuthState(updatedUser)
+        toast.success("Profile updated successfully")
+      } else {
+        toast.error(result.error || "Profile update failed")
       }
+    } catch (error) {
+      console.error("Profile update error:", error)
+      toast.error("Profile update failed")
     }
-
-    // Update locally
-    const users = JSON.parse(localStorage.getItem("users") || "[]")
-    const userIndex = users.findIndex((u: any) => u.id === user.id)
-    if (userIndex !== -1) {
-      users[userIndex] = { ...users[userIndex], ...updates }
-      localStorage.setItem("users", JSON.stringify(users))
-    }
-
-    toast.success("Profile updated successfully")
   }
 
   const changePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
     if (!user) return false
 
     try {
-      // Try server password change if online
-      if (syncService.getIsOnline()) {
-        const result = await changePasswordServer(user.id, currentPassword, newPassword)
-        if (result.success) {
-          toast.success("Password changed successfully")
-          return true
-        } else {
-          toast.error(result.error || "Password change failed")
-          return false
-        }
-      }
+      const result = await changeUserPassword(user.id, currentPassword, newPassword)
 
-      // Fallback to local password change
-      const users = JSON.parse(localStorage.getItem("users") || "[]")
-      const userIndex = users.findIndex((u: any) => u.id === user.id)
-
-      if (userIndex === -1 || users[userIndex].password !== currentPassword) {
-        toast.error("Current password is incorrect")
+      if (result.success) {
+        toast.success("Password changed successfully")
+        return true
+      } else {
+        toast.error(result.error || "Password change failed")
         return false
       }
-
-      users[userIndex].password = newPassword
-      localStorage.setItem("users", JSON.stringify(users))
-      toast.success("Password changed successfully")
-      return true
     } catch (error) {
       console.error("Password change error:", error)
       toast.error("Password change failed")
@@ -300,37 +220,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     newPassword: string,
   ): Promise<boolean> => {
     try {
-      // Try server password reset if online
-      if (syncService.getIsOnline()) {
-        const result = await resetPasswordServer(email, securityAnswer, newPassword)
-        if (result.success) {
-          toast.success("Password reset successfully")
-          return true
-        } else {
-          toast.error(result.error || "Password reset failed")
-          return false
-        }
-      }
+      const result = await resetUserPassword(email, securityAnswer, newPassword)
 
-      // Fallback to local password reset
-      const users = JSON.parse(localStorage.getItem("users") || "[]")
-      const userIndex = users.findIndex((u: any) => u.email === email)
-
-      if (userIndex === -1) {
-        toast.error("No account found with this email")
+      if (result.success) {
+        toast.success("Password reset successfully")
+        return true
+      } else {
+        toast.error(result.error || "Password reset failed")
         return false
       }
-
-      const user = users[userIndex]
-      if (user.securityAnswer !== securityAnswer.toLowerCase().trim()) {
-        toast.error("Security answer is incorrect")
-        return false
-      }
-
-      users[userIndex].password = newPassword
-      localStorage.setItem("users", JSON.stringify(users))
-      toast.success("Password reset successfully")
-      return true
     } catch (error) {
       console.error("Password reset error:", error)
       toast.error("Password reset failed")
@@ -339,34 +237,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    setUser(null)
-    localStorage.removeItem("currentUser")
+    updateAuthState(null)
+    sessionStorage.removeItem("userSession")
     toast.success("Logged out successfully")
   }
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        register,
-        logout,
-        updateProfile,
-        changePassword,
-        resetPasswordWithSecurity,
-        checkSession,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  )
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
+  return {
+    user,
+    loading,
+    login,
+    register,
+    logout,
+    updateProfile,
+    changePassword,
+    resetPasswordWithSecurity,
+    checkSession,
   }
-  return context
 }

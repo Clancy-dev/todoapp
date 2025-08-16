@@ -10,7 +10,7 @@ interface WelcomePageProps {
   onComplete: () => void
 }
 
-export function WelcomePage({ onComplete }: WelcomePageProps) {
+export default function WelcomePage({ onComplete }: WelcomePageProps) {
   const [showAuth, setShowAuth] = useState(false)
 
   const features = [

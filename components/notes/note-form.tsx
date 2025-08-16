@@ -1,10 +1,15 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,20 +20,21 @@ import { X } from "lucide-react"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import type { Note } from "@/hooks/use-notes"
 
-interface NoteFormProps {
-  isOpen: boolean
-  onClose: () => void
-  onSubmit: (data: NoteFormData) => void
-  note?: Note
-  isLoading?: boolean
-}
-
 export interface NoteFormData {
   title: string
   content: string
   category: string
   tags: string[]
   color: string
+}
+
+interface NoteFormProps {
+  isOpen: boolean
+  onClose: () => void
+  onReload: () => void // 🔹 added reload callback
+  onSubmit: (data: NoteFormData) => Promise<void> | void
+  note?: Note
+  isLoading?: boolean
 }
 
 const categories = ["Learning", "Insights", "Ideas", "Quotes", "Tips", "Reflections", "Research", "Other"]
@@ -43,7 +49,14 @@ const colors = [
   { name: "Gray", value: "bg-gray-100 border-gray-200 text-gray-900" },
 ]
 
-export function NoteForm({ isOpen, onClose, onSubmit, note, isLoading = false }: NoteFormProps) {
+export function NoteForm({
+  isOpen,
+  onClose,
+  onReload,
+  onSubmit,
+  note,
+  isLoading = false,
+}: NoteFormProps) {
   const form = useForm<NoteFormData>({
     defaultValues: {
       title: "",
@@ -58,15 +71,7 @@ export function NoteForm({ isOpen, onClose, onSubmit, note, isLoading = false }:
 
   useEffect(() => {
     if (isOpen) {
-      const savedFormData = localStorage.getItem("noteFormData")
-      if (savedFormData && !note) {
-        try {
-          const parsedData = JSON.parse(savedFormData)
-          form.reset(parsedData)
-        } catch (error) {
-          console.error("Error loading saved form data:", error)
-        }
-      } else if (note) {
+      if (note) {
         form.reset({
           title: note.title,
           content: note.content,
@@ -74,6 +79,15 @@ export function NoteForm({ isOpen, onClose, onSubmit, note, isLoading = false }:
           tags: note.tags,
           color: note.color,
         })
+      } else {
+        const savedFormData = localStorage.getItem("noteFormData")
+        if (savedFormData) {
+          try {
+            form.reset(JSON.parse(savedFormData))
+          } catch {
+            console.error("Invalid saved note form data")
+          }
+        }
       }
     }
   }, [isOpen, note, form])
@@ -87,16 +101,17 @@ export function NoteForm({ isOpen, onClose, onSubmit, note, isLoading = false }:
     return () => subscription.unsubscribe()
   }, [form, isOpen, note])
 
-  const handleSubmit = (data: NoteFormData) => {
-    onSubmit(data)
-    if (!note) {
-      localStorage.removeItem("noteFormData")
-    }
+  const handleSubmit = async (data: NoteFormData) => {
+    await onSubmit(data)
+    if (!note) localStorage.removeItem("noteFormData")
     form.reset()
     setTagInput("")
+    onReload() // 🔹 reload immediately after save
+    onClose()
   }
 
   const handleClose = () => {
+    onReload() // 🔹 reload when closing
     onClose()
     setTagInput("")
   }
@@ -115,25 +130,16 @@ export function NoteForm({ isOpen, onClose, onSubmit, note, isLoading = false }:
 
   const addTag = () => {
     if (tagInput.trim() && !form.getValues("tags").includes(tagInput.trim())) {
-      const currentTags = form.getValues("tags")
-      form.setValue("tags", [...currentTags, tagInput.trim()])
+      form.setValue("tags", [...form.getValues("tags"), tagInput.trim()])
       setTagInput("")
     }
   }
 
   const removeTag = (tagToRemove: string) => {
-    const currentTags = form.getValues("tags")
     form.setValue(
       "tags",
-      currentTags.filter((tag) => tag !== tagToRemove),
+      form.getValues("tags").filter((tag) => tag !== tagToRemove)
     )
-  }
-
-  const handleTagInputKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      addTag()
-    }
   }
 
   return (
@@ -142,11 +148,14 @@ export function NoteForm({ isOpen, onClose, onSubmit, note, isLoading = false }:
         <DialogHeader>
           <DialogTitle>{note ? "Edit Note" : "Create New Note"}</DialogTitle>
           <DialogDescription>
-            {note ? "Update your note details." : "Capture your insights, lessons learned, and important thoughts."}
+            {note
+              ? "Update your note details."
+              : "Capture your insights, lessons learned, and important thoughts."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+          {/* Title */}
           <div className="space-y-2">
             <Label htmlFor="title">Title *</Label>
             <Input
@@ -159,6 +168,7 @@ export function NoteForm({ isOpen, onClose, onSubmit, note, isLoading = false }:
             )}
           </div>
 
+          {/* Content */}
           <div className="space-y-2">
             <Label htmlFor="content">Content *</Label>
             <Textarea
@@ -172,10 +182,14 @@ export function NoteForm({ isOpen, onClose, onSubmit, note, isLoading = false }:
             )}
           </div>
 
+          {/* Category + Color */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Select value={form.watch("category")} onValueChange={(value) => form.setValue("category", value)}>
+              <Label>Category</Label>
+              <Select
+                value={form.watch("category")}
+                onValueChange={(value) => form.setValue("category", value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
@@ -190,8 +204,11 @@ export function NoteForm({ isOpen, onClose, onSubmit, note, isLoading = false }:
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="color">Color Theme</Label>
-              <Select value={form.watch("color")} onValueChange={(value) => form.setValue("color", value)}>
+              <Label>Color Theme</Label>
+              <Select
+                value={form.watch("color")}
+                onValueChange={(value) => form.setValue("color", value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select color" />
                 </SelectTrigger>
@@ -209,14 +226,20 @@ export function NoteForm({ isOpen, onClose, onSubmit, note, isLoading = false }:
             </div>
           </div>
 
+          {/* Tags */}
           <div className="space-y-2">
-            <Label htmlFor="tags">Tags</Label>
+            <Label>Tags</Label>
             <div className="flex gap-2">
               <Input
                 placeholder="Add a tag and press Enter"
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
-                onKeyPress={handleTagInputKeyPress}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    addTag()
+                  }
+                }}
               />
               <Button type="button" variant="outline" onClick={addTag}>
                 Add
@@ -227,13 +250,17 @@ export function NoteForm({ isOpen, onClose, onSubmit, note, isLoading = false }:
                 {form.watch("tags").map((tag) => (
                   <Badge key={tag} variant="secondary" className="flex items-center gap-1">
                     {tag}
-                    <X className="w-3 h-3 cursor-pointer" onClick={() => removeTag(tag)} />
+                    <X
+                      className="w-3 h-3 cursor-pointer"
+                      onClick={() => removeTag(tag)}
+                    />
                   </Badge>
                 ))}
               </div>
             )}
           </div>
 
+          {/* Actions */}
           <div className="flex gap-2 pt-4">
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card"
@@ -15,7 +15,7 @@ import { DeleteNoteModal } from "@/components/notes/delete-note-modal"
 
 const ITEMS_PER_PAGE = 10
 
-export function NotesPage() {
+export default function NotesPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [currentPage, setCurrentPage] = useState(1)
@@ -27,6 +27,12 @@ export function NotesPage() {
 
   const { notes, loading, addNote, updateNote, deleteNote } = useNotes()
 
+  // Reset page when notes or filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [notes, searchQuery, categoryFilter])
+
+  // Filtered and sorted notes
   const filteredNotes = useMemo(() => {
     return notes
       .filter((note) => {
@@ -35,7 +41,7 @@ export function NotesPage() {
           note.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
           note.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
 
-        const matchesCategory = categoryFilter === "all" || note.category === categoryFilter
+        const matchesCategory = categoryFilter === "all" || note.color === categoryFilter
 
         return matchesSearch && matchesCategory
       })
@@ -45,19 +51,29 @@ export function NotesPage() {
   const totalPages = Math.ceil(filteredNotes.length / ITEMS_PER_PAGE)
   const paginatedNotes = filteredNotes.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
 
-  const categories = Array.from(new Set(notes.map((note) => note.category)))
+  // Unique themes as categories
+  const categories = Array.from(new Set(notes.map((note) => note.color)))
 
+  // Handle create/update note
   const handleSubmit = async (data: NoteFormData) => {
     setIsSubmitting(true)
     try {
-      if (editingNote) {
-        updateNote(editingNote.id, data)
-      } else {
-        addNote(data)
+      const noteData = {
+        title: data.title,
+        content: data.content,
+        category: data.category,
+        color: data.color,
+        tags: data.tags,
       }
+
+      if (editingNote) {
+        await updateNote(editingNote.id, noteData)
+      } else {
+        await addNote(noteData)
+      }
+
       setShowForm(false)
       setEditingNote(undefined)
-      setCurrentPage(1)
     } finally {
       setIsSubmitting(false)
     }
@@ -97,6 +113,7 @@ export function NotesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Short Notes</h1>
@@ -117,10 +134,7 @@ export function NotesPage() {
           <Input
             placeholder="Search notes, content, or tags..."
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value)
-              setCurrentPage(1)
-            }}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
         </div>
@@ -131,18 +145,12 @@ export function NotesPage() {
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filters:</span>
           </div>
 
-          <Select
-            value={categoryFilter}
-            onValueChange={(value) => {
-              setCategoryFilter(value)
-              setCurrentPage(1)
-            }}
-          >
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
+              <SelectItem value="all">All Themes</SelectItem>
               {categories.map((category) => (
                 <SelectItem key={category} value={category}>
                   {category}
@@ -188,6 +196,7 @@ export function NotesPage() {
             ))}
           </div>
 
+          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -228,11 +237,12 @@ export function NotesPage() {
         onClose={() => {
           setShowForm(false)
           setEditingNote(undefined)
-        }}
+        } }
         onSubmit={handleSubmit}
         note={editingNote}
-        isLoading={isSubmitting}
-      />
+        isLoading={isSubmitting} onReload={function (): void {
+          throw new Error("Function not implemented.")
+        } }      />
 
       <NoteDetailsModal isOpen={!!viewingNote} onClose={() => setViewingNote(null)} note={viewingNote} />
 

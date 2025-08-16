@@ -8,6 +8,7 @@ export async function createPlan(data: {
   description?: string
   category: string
   priority: string
+  progress: number
   status: string
   targetDate?: Date
   milestones: Array<{ id: string; text: string; completed: boolean }>
@@ -18,7 +19,7 @@ export async function createPlan(data: {
       data,
     })
 
-    revalidatePath("/")
+    revalidatePath("/plans")
     return { success: true, plan }
   } catch (error) {
     return { success: false, error: "Failed to create plan" }
@@ -58,7 +59,7 @@ export async function updatePlan(
       data,
     })
 
-    revalidatePath("/")
+    revalidatePath("/plans")
     return { success: true, plan }
   } catch (error) {
     return { success: false, error: "Failed to update plan" }
@@ -71,7 +72,7 @@ export async function deletePlan(id: string) {
       where: { id },
     })
 
-    revalidatePath("/")
+    revalidatePath("/plans")
     return { success: true }
   } catch (error) {
     return { success: false, error: "Failed to delete plan" }
