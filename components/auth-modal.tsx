@@ -49,7 +49,7 @@ const securityQuestions = [
   "What was your first car?",
 ]
 
-// ggcg
+
 export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [currentTab, setCurrentTab] = useState("login")
