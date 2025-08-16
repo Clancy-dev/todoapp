@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
@@ -22,6 +21,14 @@ interface ChangePasswordForm {
   currentPassword: string
   newPassword: string
   confirmPassword: string
+}
+
+// Helper to compute initials dynamically
+function getInitials(name?: string) {
+  if (!name) return "U"
+  const parts = name.trim().split(" ")
+  const initials = parts.map((p) => p[0].toUpperCase()).slice(0, 2).join("")
+  return initials || "U"
 }
 
 export function SettingsPage() {
@@ -127,7 +134,6 @@ export function SettingsPage() {
       const img = new Image()
 
       img.onload = async () => {
-        // Resize image to max 400x400 while maintaining aspect ratio
         const maxSize = 400
         let { width, height } = img
 
@@ -147,8 +153,6 @@ export function SettingsPage() {
         canvas.height = height
 
         ctx?.drawImage(img, 0, 0, width, height)
-
-        // Convert to base64 with compression
         const compressedBase64 = canvas.toDataURL("image/jpeg", 0.8)
 
         try {
@@ -181,12 +185,9 @@ export function SettingsPage() {
   }
 
   const handleRemoveProfilePicture = async () => {
-    if (!confirm("Are you sure you want to remove your profile picture?")) {
-      return
-    }
+    if (!confirm("Are you sure you want to remove your profile picture?")) return
 
     try {
-      // ✅ FIX: use undefined instead of null
       await updateProfile({ profilePicture: undefined })
       setShowProfilePicture(false)
       toast.success("Profile picture removed successfully!")
@@ -202,6 +203,7 @@ export function SettingsPage() {
         <p className="text-gray-600 dark:text-gray-400 mt-2">Manage your preferences and app settings</p>
       </div>
 
+      {/* Profile Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -215,7 +217,7 @@ export function SettingsPage() {
             <div className="relative">
               <Avatar className="w-16 h-16">
                 <AvatarImage src={user?.profilePicture || "/placeholder.svg"} alt={user?.name} />
-                <AvatarFallback className="bg-blue-600 text-white text-lg">{user?.initials || "U"}</AvatarFallback>
+                <AvatarFallback className="bg-blue-600 text-white text-lg">{getInitials(user?.name)}</AvatarFallback>
               </Avatar>
               <Button
                 size="sm"
@@ -255,6 +257,7 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Appearance Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -295,6 +298,7 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Notifications Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -316,6 +320,7 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Data Management Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -337,6 +342,7 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* About Card */}
       <Card>
         <CardHeader>
           <CardTitle>About</CardTitle>
@@ -360,6 +366,7 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Change Password Dialog */}
       <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -422,6 +429,7 @@ export function SettingsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Profile Picture Dialog */}
       <Dialog open={showProfilePicture} onOpenChange={setShowProfilePicture}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -433,8 +441,8 @@ export function SettingsPage() {
             {user?.profilePicture && (
               <div className="flex justify-center">
                 <Avatar className="w-32 h-32">
-                  <AvatarImage src={user.profilePicture || "/placeholder.svg"} alt={user.name} />
-                  <AvatarFallback className="bg-blue-600 text-white text-2xl">{user.initials}</AvatarFallback>
+                  <AvatarImage src={user.profilePicture} alt={user.name} />
+                  <AvatarFallback className="bg-blue-600 text-white text-2xl">{getInitials(user.name)}</AvatarFallback>
                 </Avatar>
               </div>
             )}

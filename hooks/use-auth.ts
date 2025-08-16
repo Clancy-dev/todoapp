@@ -15,8 +15,7 @@ export interface User {
   id: string
   name: string
   email: string
-  initials: string
-  profilePicture?: string
+  profilePicture?: string | null
   securityQuestion?: string
   lastActivity?: string
 }
@@ -65,7 +64,7 @@ export function useAuth() {
 
         const result = await getUserById(userId)
         if (result.success && result.user) {
-          const userWithActivity = {
+          const userWithActivity: User = {
             ...result.user,
             lastActivity: now.toISOString(),
           }
@@ -104,8 +103,7 @@ export function useAuth() {
           id: result.user.id,
           name: result.user.name,
           email: result.user.email,
-          initials: result.user.initials,
-          profilePicture: result.user.profilePicture,
+          profilePicture: result.user.profilePicture ?? null,
           securityQuestion: result.user.securityQuestion,
           lastActivity: new Date().toISOString(),
         }
@@ -136,18 +134,24 @@ export function useAuth() {
     password: string,
     securityQuestion: string,
     securityAnswer: string,
-    profilePicture?: string,
+    profilePicture?: string | null,
   ): Promise<boolean> => {
     try {
-      const result = await registerUser(name, email, password, securityQuestion, securityAnswer, profilePicture)
+      const result = await registerUser(
+        name,
+        email,
+        password,
+        securityQuestion,
+        securityAnswer,
+        profilePicture,
+      )
 
       if (result.success && result.user) {
         const userWithActivity: User = {
           id: result.user.id,
           name: result.user.name,
           email: result.user.email,
-          initials: result.user.initials,
-          profilePicture: result.user.profilePicture,
+          profilePicture: result.user.profilePicture ?? null,
           securityQuestion: result.user.securityQuestion,
           lastActivity: new Date().toISOString(),
         }
@@ -179,7 +183,7 @@ export function useAuth() {
       const result = await updateUserProfile(user.id, updates)
 
       if (result.success && result.user) {
-        const updatedUser = {
+        const updatedUser: User = {
           ...result.user,
           lastActivity: new Date().toISOString(),
         }

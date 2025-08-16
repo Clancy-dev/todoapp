@@ -16,6 +16,14 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { AuthModal } from "@/components/auth-modal"
 
+// Helper to compute initials dynamically
+function getInitials(name?: string) {
+  if (!name) return "U"
+  const parts = name.trim().split(" ")
+  const initials = parts.map((p) => p[0].toUpperCase()).slice(0, 2).join("")
+  return initials || "U"
+}
+
 interface HeaderProps {
   onMenuClick: () => void
 }
@@ -66,7 +74,9 @@ export function Header({ onMenuClick }: HeaderProps) {
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                     <Avatar className="h-10 w-10">
                       <AvatarImage src={profilePicture || "/placeholder.svg"} alt={user.name} />
-                      <AvatarFallback className="bg-blue-600 text-white">{user.initials}</AvatarFallback>
+                      <AvatarFallback className="bg-blue-600 text-white">
+                        {getInitials(user.name)}
+                      </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>

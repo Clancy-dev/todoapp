@@ -8,26 +8,21 @@ export interface User {
   id: string
   name: string
   email: string
-  profilePicture?: string
-  securityQuestion: string
+  profilePicture?: string | null
+  securityQuestion?: string
+  lastActivity?: string
   createdAt: Date
   updatedAt: Date
 }
 
+// LOGIN
 export async function loginUser(email: string, password: string) {
   try {
-    const user = await db.user.findUnique({
-      where: { email },
-    })
-
-    if (!user) {
-      return { success: false, error: "Invalid email or password" }
-    }
+    const user = await db.user.findUnique({ where: { email } })
+    if (!user) return { success: false, error: "Invalid email or password" }
 
     const isValidPassword = await bcrypt.compare(password, user.password)
-    if (!isValidPassword) {
-      return { success: false, error: "Invalid email or password" }
-    }
+    if (!isValidPassword) return { success: false, error: "Invalid email or password" }
 
     const { password: _, securityAnswer: __, ...userWithoutSensitive } = user
     return { success: true, user: userWithoutSensitive }
@@ -37,21 +32,18 @@ export async function loginUser(email: string, password: string) {
   }
 }
 
+// REGISTER
 export async function registerUser(
   name: string,
   email: string,
   password: string,
   securityQuestion: string,
   securityAnswer: string,
+  profilePicture?: string | null
 ) {
   try {
-    const existingUser = await db.user.findUnique({
-      where: { email },
-    })
-
-    if (existingUser) {
-      return { success: false, error: "User already exists" }
-    }
+    const existingUser = await db.user.findUnique({ where: { email } })
+    if (existingUser) return { success: false, error: "User already exists" }
 
     const hashedPassword = await bcrypt.hash(password, 12)
     const hashedSecurityAnswer = await bcrypt.hash(securityAnswer.toLowerCase(), 12)
@@ -63,6 +55,7 @@ export async function registerUser(
         password: hashedPassword,
         securityQuestion,
         securityAnswer: hashedSecurityAnswer,
+        profilePicture: profilePicture ?? null,
       },
     })
 
@@ -74,11 +67,15 @@ export async function registerUser(
   }
 }
 
+// UPDATE PROFILE
 export async function updateUserProfile(userId: string, updates: Partial<User>) {
   try {
     const user = await db.user.update({
       where: { id: userId },
-      data: updates,
+      data: {
+        ...updates,
+        profilePicture: updates.profilePicture ?? undefined,
+      },
     })
 
     const { password: _, securityAnswer: __, ...userWithoutSensitive } = user
@@ -90,26 +87,17 @@ export async function updateUserProfile(userId: string, updates: Partial<User>) 
   }
 }
 
+// CHANGE PASSWORD
 export async function changeUserPassword(userId: string, currentPassword: string, newPassword: string) {
   try {
-    const user = await db.user.findUnique({
-      where: { id: userId },
-    })
-
-    if (!user) {
-      return { success: false, error: "User not found" }
-    }
+    const user = await db.user.findUnique({ where: { id: userId } })
+    if (!user) return { success: false, error: "User not found" }
 
     const isValidPassword = await bcrypt.compare(currentPassword, user.password)
-    if (!isValidPassword) {
-      return { success: false, error: "Current password is incorrect" }
-    }
+    if (!isValidPassword) return { success: false, error: "Current password is incorrect" }
 
     const hashedNewPassword = await bcrypt.hash(newPassword, 12)
-    await db.user.update({
-      where: { id: userId },
-      data: { password: hashedNewPassword },
-    })
+    await db.user.update({ where: { id: userId }, data: { password: hashedNewPassword } })
 
     return { success: true }
   } catch (error) {
@@ -118,26 +106,17 @@ export async function changeUserPassword(userId: string, currentPassword: string
   }
 }
 
+// RESET PASSWORD WITH SECURITY ANSWER
 export async function resetUserPassword(email: string, securityAnswer: string, newPassword: string) {
   try {
-    const user = await db.user.findUnique({
-      where: { email },
-    })
-
-    if (!user) {
-      return { success: false, error: "User not found" }
-    }
+    const user = await db.user.findUnique({ where: { email } })
+    if (!user) return { success: false, error: "User not found" }
 
     const isValidAnswer = await bcrypt.compare(securityAnswer.toLowerCase(), user.securityAnswer)
-    if (!isValidAnswer) {
-      return { success: false, error: "Security answer is incorrect" }
-    }
+    if (!isValidAnswer) return { success: false, error: "Security answer is incorrect" }
 
     const hashedNewPassword = await bcrypt.hash(newPassword, 12)
-    await db.user.update({
-      where: { id: user.id },
-      data: { password: hashedNewPassword },
-    })
+    await db.user.update({ where: { id: user.id }, data: { password: hashedNewPassword } })
 
     return { success: true }
   } catch (error) {
@@ -146,15 +125,11 @@ export async function resetUserPassword(email: string, securityAnswer: string, n
   }
 }
 
+// GET USER BY ID
 export async function getUserById(userId: string) {
   try {
-    const user = await db.user.findUnique({
-      where: { id: userId },
-    })
-
-    if (!user) {
-      return { success: false, error: "User not found" }
-    }
+    const user = await db.user.findUnique({ where: { id: userId } })
+    if (!user) return { success: false, error: "User not found" }
 
     const { password: _, securityAnswer: __, ...userWithoutSensitive } = user
     return { success: true, user: userWithoutSensitive }
