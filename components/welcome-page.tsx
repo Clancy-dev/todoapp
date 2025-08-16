@@ -53,7 +53,7 @@ export default function WelcomePage({ onComplete }: WelcomePageProps) {
                 <Button
                   size="lg"
                   onClick={() => setShowAuth(true)}
-                  className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-12 py-4 text-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+                  className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 dark:from-blue-500 dark:to-blue-600 dark:hover:from-blue-600 dark:hover:to-blue-700 text-white px-12 py-4 text-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
                 >
                   Get Started
                 </Button>
@@ -63,25 +63,25 @@ export default function WelcomePage({ onComplete }: WelcomePageProps) {
             <div className="flex-1 w-full max-w-xs sm:max-w-md lg:max-w-lg mx-auto lg:mx-0">
               <div className="grid grid-cols-2 gap-2 sm:gap-4">
                 <div className="relative group">
-                  <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                  <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden shadow-lg hover:shadow-xl dark:shadow-gray-900/50 dark:hover:shadow-gray-900/70 transition-all duration-300 hover:-translate-y-1">
                     <img
-                      src="/task image2.jpg"
+                      src="/task image3.jpg"
                       alt="Task Management Dashboard"
                       className="w-full h-full object-cover"
                     />
                   </div>
                 </div>
                 <div className="relative group">
-                  <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                  <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden shadow-lg hover:shadow-xl dark:shadow-gray-900/50 dark:hover:shadow-gray-900/70 transition-all duration-300 hover:-translate-y-1">
                     <img
-                      src="/task image3.jpg"
+                      src="/task image2.jpg"
                       alt="Productivity Analytics"
                       className="w-full h-full object-cover"
                     />
                   </div>
                 </div>
                 <div className="relative group col-span-2">
-                  <div className="aspect-[2/1] rounded-lg sm:rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                  <div className="aspect-[2/1] rounded-lg sm:rounded-xl overflow-hidden shadow-lg hover:shadow-xl dark:shadow-gray-900/50 dark:hover:shadow-gray-900/70 transition-all duration-300 hover:-translate-y-1">
                     <img
                       src="/tasks image.jpg"
                       alt="Team Collaboration Workspace"
@@ -98,23 +98,25 @@ export default function WelcomePage({ onComplete }: WelcomePageProps) {
           {features.map((feature, index) => (
             <Card
               key={index}
-              className="text-center hover:shadow-lg hover:shadow-blue-100 dark:hover:shadow-blue-900/20 transition-all duration-300 hover:-translate-y-1"
+              className="text-center hover:shadow-lg hover:shadow-blue-100 dark:hover:shadow-blue-900/20 transition-all duration-300 hover:-translate-y-1 dark:bg-card dark:border-border"
             >
               <CardHeader className="pb-4">
                 <feature.icon className="w-10 h-10 sm:w-12 sm:h-12 text-primary mx-auto mb-3" />
-                <CardTitle className="text-base sm:text-lg">{feature.title}</CardTitle>
+                <CardTitle className="text-base sm:text-lg dark:text-card-foreground">{feature.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                <CardDescription className="text-sm">{feature.description}</CardDescription>
+                <CardDescription className="text-sm dark:text-muted-foreground">{feature.description}</CardDescription>
               </CardContent>
             </Card>
           ))}
         </div>
 
         <div className="text-center">
-          <Card className="max-w-4xl mx-auto">
+          <Card className="max-w-4xl mx-auto dark:bg-card dark:border-border">
             <CardHeader>
-              <CardTitle className="text-xl sm:text-2xl">Why Choose TaskMaster Pro?</CardTitle>
+              <CardTitle className="text-xl sm:text-2xl dark:text-card-foreground">
+                Why Choose TaskMaster Pro?
+              </CardTitle>
             </CardHeader>
             <CardContent className="text-left">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
