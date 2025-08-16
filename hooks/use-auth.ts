@@ -52,6 +52,7 @@ export function useAuth() {
           sessionStorage.removeItem("userSession")
           updateAuthState(null)
           toast.error("Session expired. Please log in again.")
+          window.location.href = "/welcome"
           return
         }
 
@@ -73,11 +74,13 @@ export function useAuth() {
         } else {
           sessionStorage.removeItem("userSession")
           updateAuthState(null)
+          window.location.href = "/welcome"
         }
       } catch (error) {
         console.error("Session check error:", error)
         sessionStorage.removeItem("userSession")
         updateAuthState(null)
+        window.location.href = "/welcome"
       }
     }
   }
@@ -230,6 +233,7 @@ export function useAuth() {
     updateAuthState(null)
     sessionStorage.removeItem("userSession")
     toast.success("Logged out successfully")
+    window.location.href = "/welcome"
   }
 
   return {
