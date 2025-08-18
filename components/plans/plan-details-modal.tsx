@@ -63,9 +63,9 @@ export function PlanDetailsModal({ isOpen, onClose, plan, onUpdateMilestone }: P
           <DialogTitle className="text-2xl font-bold pr-8">{plan.title}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full pr-4">
-            <div className="space-y-6">
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ScrollArea className="h-[calc(90vh-8rem)]">
+            <div className="space-y-6 pr-4">
               {/* Status and Progress Section */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
@@ -133,8 +133,8 @@ export function PlanDetailsModal({ isOpen, onClose, plan, onUpdateMilestone }: P
               {plan.description && (
                 <div className="space-y-3">
                   <h3 className="text-lg font-semibold">Description</h3>
-                  <ScrollArea className="max-h-32">
-                    <div className="text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words">
+                  <ScrollArea className="max-h-40 border rounded-md p-3">
+                    <div className="text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words text-sm leading-relaxed">
                       {plan.description}
                     </div>
                   </ScrollArea>
@@ -151,7 +151,7 @@ export function PlanDetailsModal({ isOpen, onClose, plan, onUpdateMilestone }: P
                     </Badge>
                   </div>
 
-                  <ScrollArea className="max-h-48">
+                  <ScrollArea className="max-h-60 border rounded-md p-2">
                     <div className="space-y-3">
                       {plan.milestones.map((milestone) => (
                         <div
