@@ -46,13 +46,14 @@ export function PlanDetailsModal({ isOpen, onClose, plan, onUpdateMilestone }: P
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh]">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="text-xl">{plan.title}</DialogTitle>
           <DialogDescription>Plan Details</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Badges */}
           <div className="flex flex-wrap gap-2">
             <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
               <Target className="w-3 h-3 mr-1" />
@@ -83,16 +84,20 @@ export function PlanDetailsModal({ isOpen, onClose, plan, onUpdateMilestone }: P
             )}
           </div>
 
+          {/* Description */}
           <div>
             <h4 className="font-medium text-gray-900 dark:text-white mb-2">Description</h4>
-              <ScrollArea className="max-h-40 rounded-md border p-2">
-            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-            {plan.description}
-            </p>
-             <ScrollBar orientation="vertical" />
-              </ScrollArea>
+            <ScrollArea className="h-40 rounded-md border">
+              <div className="p-2">
+                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                  {plan.description}
+                </p>
+              </div>
+              <ScrollBar orientation="vertical" />
+            </ScrollArea>
           </div>
 
+          {/* Overall Progress */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="font-medium text-gray-900 dark:text-white">Overall Progress</h4>
@@ -101,13 +106,14 @@ export function PlanDetailsModal({ isOpen, onClose, plan, onUpdateMilestone }: P
             <Progress value={plan.progress} className="h-3" />
           </div>
 
+          {/* Milestones */}
           {plan.milestones.length > 0 && (
             <div>
               <h4 className="font-medium text-gray-900 dark:text-white mb-3">
                 Milestones ({plan.milestones.filter((m) => m.completed).length}/{plan.milestones.length})
               </h4>
-              <ScrollArea className="max-h-48">
-                <div className="space-y-3 pr-4">
+              <ScrollArea className="h-48 rounded-md border">
+                <div className="space-y-3 pr-2">
                   {plan.milestones.map((milestone) => (
                     <div
                       key={milestone.id}
@@ -131,10 +137,12 @@ export function PlanDetailsModal({ isOpen, onClose, plan, onUpdateMilestone }: P
                     </div>
                   ))}
                 </div>
+                <ScrollBar orientation="vertical" />
               </ScrollArea>
             </div>
           )}
 
+          {/* Created / Updated */}
           <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
             <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-400">
               <div>
