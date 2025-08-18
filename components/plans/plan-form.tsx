@@ -63,20 +63,21 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
     name: "milestones",
   })
 
+  // Reset form only when modal opens or plan changes
   useEffect(() => {
-    if (plan) {
+    if (isOpen && plan) {
       form.reset({
         title: plan.title,
         description: plan.description ?? "",
         category: plan.category,
         priority: plan.priority,
         status: plan.status,
-        targetDate: plan.targetDate ? plan.targetDate : undefined,
+        targetDate: plan.targetDate ?? undefined,
         progress: plan.progress,
         milestones: plan.milestones,
       })
     }
-  }, [plan, form])
+  }, [isOpen, plan?.id, form])
 
   const handleSubmit = (data: PlanFormData) => {
     onSubmit(data)
