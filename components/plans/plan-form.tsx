@@ -2,7 +2,6 @@
 
 import { useEffect } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
-import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,8 +45,6 @@ const categories = [
 ]
 
 export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }: PlanFormProps) {
-  const router = useRouter() // <--- Added for refreshing page after submit
-
   const form = useForm<PlanFormData>({
     defaultValues: {
       title: "",
@@ -82,10 +79,8 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
   }, [plan, form])
 
   const handleSubmit = (data: PlanFormData) => {
-    onSubmit(data)           // perform create/update
-    form.reset()             // reset form
-    onClose()                // close modal
-    router.refresh()         // refresh page to show updated data
+    onSubmit(data)
+    form.reset()
   }
 
   const handleClose = () => {
@@ -106,9 +101,7 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
         <DialogHeader>
           <DialogTitle>{plan ? "Edit Plan" : "Create New Plan"}</DialogTitle>
           <DialogDescription>
-            {plan
-              ? "Update your long-term plan details."
-              : "Create a new long-term goal and track your progress."}
+            {plan ? "Update your long-term plan details." : "Create a new long-term goal and track your progress."}
           </DialogDescription>
         </DialogHeader>
 
@@ -116,9 +109,7 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
           <div className="space-y-2">
             <Label htmlFor="title">Title *</Label>
             <Input id="title" {...form.register("title", { required: "Title is required" })} />
-            {form.formState.errors.title && (
-              <p className="text-red-600">{form.formState.errors.title.message}</p>
-            )}
+            {form.formState.errors.title && <p className="text-red-600">{form.formState.errors.title.message}</p>}
           </div>
 
           <div className="space-y-2">
@@ -129,10 +120,7 @@ export function PlanForm({ isOpen, onClose, onSubmit, plan, isLoading = false }:
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="category">Category</Label>
-              <Select
-                value={form.watch("category")}
-                onValueChange={(value) => form.setValue("category", value)}
-              >
+              <Select value={form.watch("category")} onValueChange={(value) => form.setValue("category", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
