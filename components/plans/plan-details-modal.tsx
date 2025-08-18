@@ -133,11 +133,13 @@ export function PlanDetailsModal({ isOpen, onClose, plan, onUpdateMilestone }: P
               {plan.description && (
                 <div className="space-y-3">
                   <h3 className="text-lg font-semibold">Description</h3>
-                  <ScrollArea className="max-h-40 border rounded-md p-3">
-                    <div className="text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words text-sm leading-relaxed">
-                      {plan.description}
-                    </div>
-                  </ScrollArea>
+                  <div className="border rounded-lg bg-gray-50 dark:bg-gray-800/30">
+                    <ScrollArea className="max-h-48 p-4">
+                      <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words text-sm leading-relaxed">
+                        {plan.description}
+                      </div>
+                    </ScrollArea>
+                  </div>
                 </div>
               )}
 
