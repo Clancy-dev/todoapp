@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache"
 export async function createNote(data: {
   title: string
   content: string
-  category?: string // Optional, default to "Learning" if not provided
+  category?: string | null
   color: string
   tags: string[]
   userId: string
@@ -17,9 +17,9 @@ export async function createNote(data: {
         title: data.title,
         content: data.content,
         color: data.color,
-        category: data.category || "Learning", // Default to "Learning" if category is not set
+        category: data.category ?? null,
         tags: data.tags,
-        userId: data.userId, // must be a valid MongoDB ObjectId string
+        userId: data.userId, 
       },
     })
 
@@ -49,7 +49,7 @@ export async function updateNote(
   data: {
     title?: string
     content?: string
-    theme?: string
+    color?: string
     category?: string
     tags?: string[]
   }
@@ -90,7 +90,7 @@ export async function syncNotes(userId: string, notes: any[]) {
         data: notes.map((note) => ({
           title: note.title,
           content: note.content,
-          category: note.category || "Learning", // Default to "Learning" if category is not set
+          category: note.category ?? null,
           color: note.color,
           tags: note.tags,
           userId,

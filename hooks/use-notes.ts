@@ -14,7 +14,7 @@ export interface Note {
   id: string
   title: string
   content: string
-  category: string
+  category?: string | null
   color: string
   tags: string[]
   createdAt: string

@@ -73,7 +73,7 @@ model Note {
   title     String
   content   String
   color     String
-  category  String
+  category  String?
   tags      String[]
   userId    String   @db.ObjectId
   createdAt DateTime @default(now())
