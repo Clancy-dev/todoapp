@@ -40,7 +40,7 @@ export function useNotes() {
             id: n.id,
             title: n.title,
             content: n.content,
-            category: n.category || "Learning",
+            category: n.category,
             color: n.color,
             tags: n.tags,
             createdAt: new Date(n.createdAt).toISOString(),
