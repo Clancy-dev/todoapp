@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Calendar, Clock, Flag, Target } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Plan } from "@/hooks/use-plans"
@@ -89,6 +89,7 @@ export function PlanDetailsModal({ isOpen, onClose, plan, onUpdateMilestone }: P
             <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
             {plan.description}
             </p>
+             <ScrollBar orientation="vertical" />
               </ScrollArea>
           </div>
 
