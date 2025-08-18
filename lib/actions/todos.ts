@@ -34,7 +34,7 @@ export async function getTodosByUserAndDate(userId: string, date: string) {
         date,
       },
       orderBy: {
-        createdAt: "desc",
+        createdAt: "asc",
       },
     })
 
