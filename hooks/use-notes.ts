@@ -70,6 +70,7 @@ export function useNotes() {
     content: string
     color: string
     tags: string[]
+    category?: string | null
   }) => {
     if (!user?.id) {
       toast.error("Please log in to create notes")
@@ -82,6 +83,7 @@ export function useNotes() {
         title,
         content,
         color,
+        category: noteData.category ?? null, // <--- add this
         tags,
         userId: user.id,
       })
